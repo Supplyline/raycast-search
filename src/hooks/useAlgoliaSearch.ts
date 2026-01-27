@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { showToast, Toast } from "@raycast/api";
-import { SkuEntity } from "../types";
-import { searchSkus } from "../utils/algolia";
+import { SearchResult, StackItem, Scope } from "../types";
+import { searchProducts, searchDocs } from "../utils/algolia";
 
 // Custom debounce hook
 function useDebouncedValue<T>(value: T, delay: number): T {
@@ -17,16 +17,21 @@ function useDebouncedValue<T>(value: T, delay: number): T {
 
 interface UseAlgoliaSearchOptions {
   debounceMs?: number;
+  scope?: Scope;
+  stack?: StackItem[];
 }
 
 export function useAlgoliaSearch(query: string, options: UseAlgoliaSearchOptions = {}) {
-  const { debounceMs = 200 } = options;
-  const [results, setResults] = useState<SkuEntity[]>([]);
+  const { debounceMs = 200, scope = "products", stack = [] } = options;
+  const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
   const debouncedQuery = useDebouncedValue(query, debounceMs);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Serialize stack for dependency comparison
+  const stackKey = JSON.stringify(stack);
 
   useEffect(() => {
     // Cancel previous request
@@ -50,7 +55,13 @@ export function useAlgoliaSearch(query: string, options: UseAlgoliaSearchOptions
 
     const performSearch = async () => {
       try {
-        const searchResults = await searchSkus(trimmedQuery);
+        let searchResults: SearchResult[];
+
+        if (scope === "docs") {
+          searchResults = await searchDocs(trimmedQuery);
+        } else {
+          searchResults = await searchProducts(trimmedQuery, stack);
+        }
 
         // Check if request was aborted
         if (abortControllerRef.current?.signal.aborted) return;
@@ -78,7 +89,7 @@ export function useAlgoliaSearch(query: string, options: UseAlgoliaSearchOptions
     return () => {
       abortControllerRef.current?.abort();
     };
-  }, [debouncedQuery]);
+  }, [debouncedQuery, scope, stackKey]);
 
   return { results, isLoading, error };
 }

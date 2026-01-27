@@ -71,12 +71,12 @@ Search `products_sku` index, open SKU in browser.
 
 ### Tasks
 
-- [ ] Update `useAlgoliaSearch.ts` for multi-index queries
-- [ ] Implement result merging logic
-- [ ] Add MNO boost (exact matches first)
-- [ ] Update list to show entity type icons
-- [ ] Add "drill" indicator for browse items
-- [ ] Test federated search behavior
+- [x] Update `useAlgoliaSearch.ts` for multi-index queries
+- [x] Implement result merging logic
+- [x] Add MNO boost (exact matches first)
+- [x] Update list to show entity type icons
+- [x] Add "drill" indicator for browse items
+- [x] Test federated search behavior
 
 ### Deliverable
 

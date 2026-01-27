@@ -1,5 +1,5 @@
 import { algoliasearch } from "algoliasearch";
-import { SkuEntity } from "../types";
+import { SkuEntity, BrowseEntity, DocEntity, StackItem, SearchResult } from "../types";
 
 // Algolia credentials (Search-Only API Key - safe to expose in client code)
 const ALGOLIA_APP_ID = "93ZW4STL69";
@@ -32,7 +32,126 @@ export function isMnoQuery(query: string): boolean {
   return alphanumericRatio > 0.9 && hasDigits && hasLetters && noSpaces;
 }
 
-// Search products_sku index
+// Build Algolia filters from stack
+export function buildFilters(stack: StackItem[]): string {
+  const filters: string[] = [];
+
+  for (const item of stack) {
+    const escaped = item.id.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+
+    if (item.type === "brand") {
+      filters.push(`brandSlug:"${escaped}"`);
+    } else if (item.type === "series") {
+      filters.push(`drillKey.series:"${escaped}"`);
+    } else if (item.type === "parent") {
+      filters.push(`drillKey.parent:"${escaped}"`);
+    }
+  }
+
+  return filters.join(" AND ");
+}
+
+// Search parameters for MNO mode - SKU index (has mno field)
+function getMnoSearchParamsSku(query: string, filters: string) {
+  return {
+    query,
+    filters: filters || undefined,
+    typoTolerance: "min" as const,
+    restrictSearchableAttributes: ["mno", "title"],
+    hitsPerPage: 20,
+  };
+}
+
+// Search parameters for MNO mode - Browse index (no mno field)
+function getMnoSearchParamsBrowse(query: string, filters: string) {
+  return {
+    query,
+    filters: filters || undefined,
+    typoTolerance: "min" as const,
+    restrictSearchableAttributes: ["title"],
+    hitsPerPage: 20,
+  };
+}
+
+// Search parameters for general mode
+function getGeneralSearchParams(query: string, filters: string) {
+  return {
+    query,
+    filters: filters || undefined,
+    typoTolerance: true as const,
+    hitsPerPage: 20,
+  };
+}
+
+// Federated search across products indices
+export async function searchProducts(
+  query: string,
+  stack: StackItem[]
+): Promise<SearchResult[]> {
+  const client = getAlgoliaClient();
+  const filters = buildFilters(stack);
+  const isMno = isMnoQuery(query);
+
+  // Use different search params for each index (browse doesn't have mno field)
+  const browseSearchParams = isMno
+    ? getMnoSearchParamsBrowse(query, filters)
+    : getGeneralSearchParams(query, filters);
+  const skuSearchParams = isMno
+    ? getMnoSearchParamsSku(query, filters)
+    : getGeneralSearchParams(query, filters);
+
+  // If stack is empty, search both indices
+  if (stack.length === 0) {
+    const [browseResponse, skuResponse] = await Promise.all([
+      client.searchSingleIndex<BrowseEntity>({
+        indexName: INDEX_NAMES.browse,
+        searchParams: browseSearchParams,
+      }),
+      client.searchSingleIndex<SkuEntity>({
+        indexName: INDEX_NAMES.sku,
+        searchParams: skuSearchParams,
+      }),
+    ]);
+
+    // Merge and sort by relevance
+    const combined: SearchResult[] = [...browseResponse.hits, ...skuResponse.hits];
+
+    // For MNO queries, boost exact matches
+    if (isMno) {
+      combined.sort((a, b) => {
+        const aExact = "mno" in a && a.mno?.toLowerCase() === query.toLowerCase();
+        const bExact = "mno" in b && b.mno?.toLowerCase() === query.toLowerCase();
+        if (aExact && !bExact) return -1;
+        if (bExact && !aExact) return 1;
+        return 0;
+      });
+    }
+
+    return combined.slice(0, 20);
+  }
+
+  // If stack has items, search only SKU index (filtered)
+  const response = await client.searchSingleIndex<SkuEntity>({
+    indexName: INDEX_NAMES.sku,
+    searchParams,
+  });
+  return response.hits;
+}
+
+// Search docs index
+export async function searchDocs(query: string): Promise<SearchResult[]> {
+  const client = getAlgoliaClient();
+  const response = await client.searchSingleIndex<DocEntity>({
+    indexName: INDEX_NAMES.docs,
+    searchParams: {
+      query,
+      hitsPerPage: 20,
+    },
+  });
+  return response.hits;
+}
+
+// Legacy: Search products_sku index only (kept for backwards compatibility)
 export async function searchSkus(query: string): Promise<SkuEntity[]> {
   const client = getAlgoliaClient();
   const isMno = isMnoQuery(query);
