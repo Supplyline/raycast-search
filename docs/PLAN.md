@@ -90,14 +90,14 @@ Empty stack searches both indices; results show series, parents, and SKUs.
 
 ### Tasks
 
-- [ ] Create `src/hooks/useNavigationStack.ts`
-- [ ] Implement push (drill into series/parent)
+- [x] Create `src/hooks/useNavigationStack.ts`
+- [x] Implement push (drill into series/parent)
 - [ ] Implement pop (backspace or ⌘+←)
 - [ ] Create `src/components/Breadcrumb.tsx`
-- [ ] Add breadcrumb to list header
-- [ ] Update search to filter by stack
-- [ ] Clear query on drill
-- [ ] Test navigation flows
+- [x] Add breadcrumb to list header
+- [x] Update search to filter by stack
+- [x] Clear query on drill
+- [x] Test navigation flows
 
 ### Deliverable
 
