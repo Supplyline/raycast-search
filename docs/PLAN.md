@@ -47,17 +47,17 @@ raycast-search/
 
 ### Tasks
 
-- [ ] Initialize Raycast extension (`npx create-raycast-extension`)
-- [ ] Configure package.json with commands and preferences
-- [ ] Create `src/types.ts` with entity types
-- [ ] Create `src/utils/algolia.ts` with client setup
-- [ ] Implement MNO detection heuristic
-- [ ] Create `src/hooks/useAlgoliaSearch.ts` (single index)
-- [ ] Create `src/index.tsx` main search command
-- [ ] Implement basic list rendering
-- [ ] Add "Open in Browser" action
-- [ ] Add "Copy" action (⌘+K)
-- [ ] Test with live Algolia credentials
+- [x] Initialize Raycast extension (`npx create-raycast-extension`)
+- [x] Configure package.json with commands and preferences
+- [x] Create `src/types.ts` with entity types
+- [x] Create `src/utils/algolia.ts` with client setup
+- [x] Implement MNO detection heuristic
+- [x] Create `src/hooks/useAlgoliaSearch.ts` (single index)
+- [x] Create `src/index.tsx` main search command
+- [x] Implement basic list rendering
+- [x] Add "Open in Browser" action
+- [x] Add "Copy" action (⌘+K)
+- [x] Test with live Algolia credentials
 
 ### Deliverable
 
