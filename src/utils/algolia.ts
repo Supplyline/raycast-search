@@ -105,16 +105,32 @@ export async function searchProducts(
     const [browseResponse, skuResponse] = await Promise.all([
       client.searchSingleIndex<BrowseEntity>({
         indexName: INDEX_NAMES.browse,
-        searchParams: browseSearchParams,
+        searchParams: {
+          ...browseSearchParams,
+          attributesToRetrieve: ["*"],
+        },
       }),
       client.searchSingleIndex<SkuEntity>({
         indexName: INDEX_NAMES.sku,
-        searchParams: skuSearchParams,
+        searchParams: {
+          ...skuSearchParams,
+          attributesToRetrieve: ["*"],
+        },
       }),
     ]);
 
+    // Transform hits to add primaryBehavior
+    const browseResults: SearchResult[] = browseResponse.hits.map((hit) => ({
+      ...hit,
+      primaryBehavior: "drill" as const,
+    }));
+    const skuResults: SearchResult[] = skuResponse.hits.map((hit) => ({
+      ...hit,
+      primaryBehavior: "open" as const,
+    }));
+
     // Merge and sort by relevance
-    const combined: SearchResult[] = [...browseResponse.hits, ...skuResponse.hits];
+    const combined: SearchResult[] = [...browseResults, ...skuResults];
 
     // For MNO queries, boost exact matches
     if (isMno) {
@@ -130,12 +146,39 @@ export async function searchProducts(
     return combined.slice(0, 20);
   }
 
-  // If stack has items, search only SKU index (filtered)
+  // If stack has items, determine which index to search based on stack depth
+  const lastStackItem = stack[stack.length - 1];
+
+  // Series level → search browse index for Parent items
+  // Parent level → search SKU index for SKU items
+  if (lastStackItem.type === "series") {
+    // Add entityType:"parent" filter to only get Parent items, not the Series itself
+    const parentFilters = filters
+      ? `${filters} AND entityType:"parent"`
+      : `entityType:"parent"`;
+    const response = await client.searchSingleIndex<BrowseEntity>({
+      indexName: INDEX_NAMES.browse,
+      searchParams: {
+        ...browseSearchParams,
+        filters: parentFilters,
+        attributesToRetrieve: ["*"],
+      },
+    });
+    return response.hits.map((hit) => ({
+      ...hit,
+      primaryBehavior: "drill" as const,
+    }));
+  }
+
+  // Parent level or brand level → search SKU index
   const response = await client.searchSingleIndex<SkuEntity>({
     indexName: INDEX_NAMES.sku,
-    searchParams,
+    searchParams: skuSearchParams,
   });
-  return response.hits;
+  return response.hits.map((hit) => ({
+    ...hit,
+    primaryBehavior: "open" as const,
+  }));
 }
 
 // Search docs index
@@ -148,7 +191,10 @@ export async function searchDocs(query: string): Promise<SearchResult[]> {
       hitsPerPage: 20,
     },
   });
-  return response.hits;
+  return response.hits.map((hit) => ({
+    ...hit,
+    primaryBehavior: "open" as const,
+  }));
 }
 
 // Legacy: Search products_sku index only (kept for backwards compatibility)

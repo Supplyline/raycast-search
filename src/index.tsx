@@ -1,6 +1,7 @@
 import { Action, ActionPanel, List, Icon, Color, getPreferenceValues, showToast, Toast, Clipboard } from "@raycast/api";
 import { useState, useCallback } from "react";
 import { useAlgoliaSearch } from "./hooks/useAlgoliaSearch";
+import { useNavigationStack } from "./hooks/useNavigationStack";
 import { SearchResult, Preferences, SkuEntity, DocEntity } from "./types";
 
 function getIconForEntity(result: SearchResult): { source: Icon; tintColor: Color } {
@@ -21,8 +22,9 @@ function getIconForEntity(result: SearchResult): { source: Icon; tintColor: Colo
 export default function SearchSupplyline() {
   const { showPrices } = getPreferenceValues<Preferences>();
   const [query, setQuery] = useState("");
+  const { stack, push, pop, breadcrumb, canPop } = useNavigationStack();
 
-  const { results, isLoading, error } = useAlgoliaSearch(query);
+  const { results, isLoading, error } = useAlgoliaSearch(query, { stack });
 
   const handleCopy = useCallback(async (item: SearchResult) => {
     const text = `${item.mno} — $${item.price?.toFixed(2) || "N/A"}\n${item.urlShop || ""}`;
@@ -30,14 +32,68 @@ export default function SearchSupplyline() {
     await showToast({ style: Toast.Style.Success, title: "Copied" });
   }, []);
 
+  const handleSelect = useCallback(
+    (item: SearchResult) => {
+      if (item.primaryBehavior === "drill") {
+        // Series: use drillKey.series (flat key) to filter children
+        const seriesKey = item["drillKey.series"];
+        if (item.entityType === "series" && seriesKey) {
+          push({ type: "series", id: seriesKey, label: item.title });
+          setQuery("");
+        }
+        // Parent: use drillKey.parent (flat key) to filter children
+        else if (item.entityType === "parent" && item["drillKey.parent"]) {
+          push({ type: "parent", id: item["drillKey.parent"], label: item.title });
+          setQuery("");
+        }
+      } else if (item.primaryBehavior === "open" && item.urlShop) {
+        open(item.urlShop);
+      }
+    },
+    [push]
+  );
+
+  const handlePop = useCallback(() => {
+    if (canPop) {
+      pop();
+      setQuery("");
+    }
+  }, [canPop, pop]);
+
+  const handleSearchTextChange = useCallback(
+    (text: string) => {
+      // Pop on backspace when query is empty
+      if (text === "" && query === "" && canPop) {
+        handlePop();
+      } else {
+        setQuery(text);
+      }
+    },
+    [query, canPop, handlePop]
+  );
+
   return (
     <List
       isLoading={isLoading}
-      searchBarPlaceholder="Search products and SKUs..."
+      navigationTitle={breadcrumb || "Search Supplyline"}
+      searchBarPlaceholder={canPop ? `Search in ${stack[stack.length - 1]?.label}...` : "Search products and SKUs..."}
       searchText={query}
-      onSearchTextChange={setQuery}
+      onSearchTextChange={handleSearchTextChange}
       throttle
     >
+      {canPop && (
+        <List.Item
+          icon={Icon.ArrowLeft}
+          title="Go Back"
+          subtitle={stack.length > 1 ? `Return to ${stack[stack.length - 2]?.label}` : "Return to Search"}
+          actions={
+            <ActionPanel>
+              <Action title="Go Back" icon={Icon.ArrowLeft} onAction={handlePop} />
+            </ActionPanel>
+          }
+        />
+      )}
+
       {results.length === 0 && query.length >= 2 && !isLoading && (
         <List.EmptyView
           title="No Results"
@@ -49,7 +105,7 @@ export default function SearchSupplyline() {
       {results.length > 0 && (
         <List.Section title="Results" subtitle={`${results.length} items`}>
           {results.map((item) => (
-            <SearchResultItem key={item.objectID} item={item} showPrices={showPrices} onCopy={handleCopy} />
+            <SearchResultItem key={item.objectID} item={item} showPrices={showPrices} onCopy={handleCopy} onSelect={handleSelect} />
           ))}
         </List.Section>
       )}
@@ -61,9 +117,10 @@ interface SearchResultItemProps {
   item: SearchResult;
   showPrices: boolean;
   onCopy: (item: SearchResult) => void;
+  onSelect: (item: SearchResult) => void;
 }
 
-function SearchResultItem({ item, showPrices, onCopy }: SearchResultItemProps) {
+function SearchResultItem({ item, showPrices, onCopy, onSelect }: SearchResultItemProps) {
   const subtitle = getSubtitle(item, showPrices);
   const accessories = getAccessories(item);
   const icon = getIconForEntity(item);
@@ -78,6 +135,9 @@ function SearchResultItem({ item, showPrices, onCopy }: SearchResultItemProps) {
       actions={
         <ActionPanel>
           <ActionPanel.Section>
+            {item.primaryBehavior === "drill" && (
+              <Action title="Drill Down" icon={Icon.ChevronRight} onAction={() => onSelect(item)} />
+            )}
             {item.urlShop && <Action.OpenInBrowser title="Open Shop" url={item.urlShop} icon={Icon.Cart} />}
             {item.urlAbout && (
               <Action.OpenInBrowser

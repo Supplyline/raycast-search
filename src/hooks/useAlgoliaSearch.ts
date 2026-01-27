@@ -41,8 +41,9 @@ export function useAlgoliaSearch(query: string, options: UseAlgoliaSearchOptions
 
     const trimmedQuery = debouncedQuery.trim();
 
-    // Clear results if query is too short
-    if (trimmedQuery.length < 2) {
+    // Clear results if query is too short AND stack is empty
+    // When inside a drill context (stack.length > 0), show children even with empty query
+    if (trimmedQuery.length < 2 && stack.length === 0) {
       setResults([]);
       setIsLoading(false);
       return;

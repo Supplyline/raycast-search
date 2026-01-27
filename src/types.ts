@@ -12,11 +12,10 @@ export interface BaseEntity {
   primaryBehavior: "drill" | "open";
   urlShop?: string;
   urlAbout?: string;
-  drillKey?: {
-    brand?: string;
-    series?: string;
-    parent?: string;
-  };
+  // Algolia stores these as flat keys with dots in the name
+  "drillKey.brand"?: string;
+  "drillKey.series"?: string;
+  "drillKey.parent"?: string;
 }
 
 export interface BrowseEntity extends BaseEntity {
