@@ -88,7 +88,7 @@ export default function SearchSupplyline() {
           subtitle={stack.length > 1 ? `Return to ${stack[stack.length - 2]?.label}` : "Return to Search"}
           actions={
             <ActionPanel>
-              <Action title="Go Back" icon={Icon.ArrowLeft} onAction={handlePop} />
+              <Action title="Go Back" icon={Icon.ArrowLeft} shortcut={{ modifiers: ["cmd"], key: "arrowLeft" }} onAction={handlePop} />
             </ActionPanel>
           }
         />
@@ -105,7 +105,7 @@ export default function SearchSupplyline() {
       {results.length > 0 && (
         <List.Section title="Results" subtitle={`${results.length} items`}>
           {results.map((item) => (
-            <SearchResultItem key={item.objectID} item={item} showPrices={showPrices} onCopy={handleCopy} onSelect={handleSelect} />
+            <SearchResultItem key={item.objectID} item={item} showPrices={showPrices} onCopy={handleCopy} onSelect={handleSelect} onPop={handlePop} canPop={canPop} />
           ))}
         </List.Section>
       )}
@@ -118,9 +118,11 @@ interface SearchResultItemProps {
   showPrices: boolean;
   onCopy: (item: SearchResult) => void;
   onSelect: (item: SearchResult) => void;
+  onPop?: () => void;
+  canPop?: boolean;
 }
 
-function SearchResultItem({ item, showPrices, onCopy, onSelect }: SearchResultItemProps) {
+function SearchResultItem({ item, showPrices, onCopy, onSelect, onPop, canPop }: SearchResultItemProps) {
   const subtitle = getSubtitle(item, showPrices);
   const accessories = getAccessories(item);
   const icon = getIconForEntity(item);
@@ -156,6 +158,16 @@ function SearchResultItem({ item, showPrices, onCopy, onSelect }: SearchResultIt
               onAction={() => onCopy(item)}
             />
           </ActionPanel.Section>
+          {canPop && onPop && (
+            <ActionPanel.Section>
+              <Action
+                title="Go Back"
+                icon={Icon.ArrowLeft}
+                shortcut={{ modifiers: ["cmd"], key: "arrowLeft" }}
+                onAction={onPop}
+              />
+            </ActionPanel.Section>
+          )}
         </ActionPanel>
       }
     />
