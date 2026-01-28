@@ -1,8 +1,8 @@
-import { Action, ActionPanel, List, Icon, Color, getPreferenceValues, showToast, Toast, Clipboard } from "@raycast/api";
+import { Action, ActionPanel, List, Detail, Icon, Color, getPreferenceValues, showToast, Toast, Clipboard } from "@raycast/api";
 import { useState, useCallback } from "react";
 import { useAlgoliaSearch } from "./hooks/useAlgoliaSearch";
 import { useNavigationStack } from "./hooks/useNavigationStack";
-import { SearchResult, Preferences, SkuEntity, DocEntity } from "./types";
+import { SearchResult, Preferences, SkuEntity, DocEntity, Scope } from "./types";
 
 function getIconForEntity(result: SearchResult): { source: Icon; tintColor: Color } {
   switch (result.entityType) {
@@ -20,14 +20,24 @@ function getIconForEntity(result: SearchResult): { source: Icon; tintColor: Colo
 }
 
 export default function SearchSupplyline() {
-  const { showPrices } = getPreferenceValues<Preferences>();
+  const { showPrices, defaultScope } = getPreferenceValues<Preferences>();
   const [query, setQuery] = useState("");
+  const [scope, setScope] = useState<Scope>(defaultScope || "products");
   const { stack, push, pop, breadcrumb, canPop } = useNavigationStack();
 
-  const { results, isLoading, error } = useAlgoliaSearch(query, { stack });
+  const { results, isLoading, error } = useAlgoliaSearch(query, { stack, scope });
 
   const handleCopy = useCallback(async (item: SearchResult) => {
-    const text = `${item.mno} — $${item.price?.toFixed(2) || "N/A"}\n${item.urlShop || ""}`;
+    let text: string;
+    if (item.entityType === "doc") {
+      const doc = item as DocEntity;
+      text = `${doc.title}\n${doc.downloadUrl}`;
+    } else if (item.entityType === "sku") {
+      const sku = item as SkuEntity;
+      text = `${sku.mno} — $${sku.price?.toFixed(2) || "N/A"}\n${sku.urlShop || ""}`;
+    } else {
+      text = `${item.title}\n${item.urlShop || item.urlAbout || ""}`;
+    }
     await Clipboard.copy(text);
     await showToast({ style: Toast.Style.Success, title: "Copied" });
   }, []);
@@ -72,14 +82,36 @@ export default function SearchSupplyline() {
     [query, canPop, handlePop]
   );
 
+  const getPlaceholder = () => {
+    if (canPop) return `Search in ${stack[stack.length - 1]?.label}...`;
+    if (scope === "docs") return "Search manuals, datasheets, IOMs...";
+    return "Search products and SKUs...";
+  };
+
+  const getNavigationTitle = () => {
+    if (breadcrumb) return breadcrumb;
+    if (scope === "docs") return "Search Supplyline Docs";
+    return "Search Supplyline";
+  };
+
   return (
     <List
       isLoading={isLoading}
-      navigationTitle={breadcrumb || "Search Supplyline"}
-      searchBarPlaceholder={canPop ? `Search in ${stack[stack.length - 1]?.label}...` : "Search products and SKUs..."}
+      navigationTitle={getNavigationTitle()}
+      searchBarPlaceholder={getPlaceholder()}
       searchText={query}
       onSearchTextChange={handleSearchTextChange}
       throttle
+      searchBarAccessory={
+        <List.Dropdown
+          tooltip="Search Scope"
+          value={scope}
+          onChange={(newValue) => setScope(newValue as Scope)}
+        >
+          <List.Dropdown.Item title="Products" value="products" />
+          <List.Dropdown.Item title="Docs" value="docs" />
+        </List.Dropdown>
+      }
     >
       {canPop && (
         <List.Item
@@ -127,6 +159,8 @@ function SearchResultItem({ item, showPrices, onCopy, onSelect, onPop, canPop }:
   const accessories = getAccessories(item);
   const icon = getIconForEntity(item);
   const title = item.entityType === "sku" ? (item as SkuEntity).mno : item.title;
+  const isDoc = item.entityType === "doc";
+  const doc = isDoc ? (item as DocEntity) : null;
 
   return (
     <List.Item
@@ -140,8 +174,19 @@ function SearchResultItem({ item, showPrices, onCopy, onSelect, onPop, canPop }:
             {item.primaryBehavior === "drill" && (
               <Action title="Drill Down" icon={Icon.ChevronRight} onAction={() => onSelect(item)} />
             )}
-            {item.urlShop && <Action.OpenInBrowser title="Open Shop" url={item.urlShop} icon={Icon.Cart} />}
-            {item.urlAbout && (
+            {isDoc && doc?.downloadUrl && (
+              <Action.OpenInBrowser title="Open Document" url={doc.downloadUrl} icon={Icon.Globe} />
+            )}
+            {isDoc && doc?.downloadUrl && (
+              <Action.Push
+                title="Quick Look"
+                icon={Icon.Eye}
+                shortcut={{ modifiers: ["cmd"], key: "p" }}
+                target={<DocQuickLook doc={doc} />}
+              />
+            )}
+            {!isDoc && item.urlShop && <Action.OpenInBrowser title="Open Shop" url={item.urlShop} icon={Icon.Cart} />}
+            {!isDoc && item.urlAbout && (
               <Action.OpenInBrowser
                 title="Open About"
                 url={item.urlAbout}
@@ -177,7 +222,13 @@ function SearchResultItem({ item, showPrices, onCopy, onSelect, onPop, canPop }:
 function getSubtitle(item: SearchResult, showPrices: boolean): string {
   const parts = [item.brand];
   if (item.entityType === "sku" && showPrices && (item as SkuEntity).price != null) {
-    parts.push(`$${item.price.toFixed(2)}`);
+    parts.push(`$${(item as SkuEntity).price!.toFixed(2)}`);
+  }
+  if (item.entityType === "doc") {
+    const doc = item as DocEntity;
+    if (doc.docType) {
+      parts.push(doc.docType.toUpperCase());
+    }
   }
   return parts.join(" • ");
 }
@@ -203,5 +254,52 @@ function getAccessories(item: SearchResult): List.Item.Accessory[] {
     }
   }
 
+  // Doc type tag
+  if (item.entityType === "doc") {
+    const doc = item as DocEntity;
+    accessories.push({
+      tag: {
+        value: doc.docType?.toUpperCase() || "DOC",
+        color: Color.Blue,
+      },
+    });
+  }
+
   return accessories;
+}
+
+function DocQuickLook({ doc }: { doc: DocEntity }) {
+  const markdown = `# ${doc.title}
+
+**Brand:** ${doc.brand}
+**Type:** ${doc.docType?.toUpperCase() || "Document"}
+
+[Open in Browser](${doc.downloadUrl})
+`;
+
+  return (
+    <Detail
+      markdown={markdown}
+      metadata={
+        <Detail.Metadata>
+          <Detail.Metadata.Label title="Brand" text={doc.brand} />
+          <Detail.Metadata.Label title="Type" text={doc.docType?.toUpperCase() || "DOC"} />
+          {doc.fileSize && <Detail.Metadata.Label title="Size" text={formatFileSize(doc.fileSize)} />}
+          <Detail.Metadata.Link title="URL" target={doc.downloadUrl} text="Open Document" />
+        </Detail.Metadata>
+      }
+      actions={
+        <ActionPanel>
+          <Action.OpenInBrowser title="Open Document" url={doc.downloadUrl} icon={Icon.Globe} />
+          <Action.CopyToClipboard title="Copy URL" content={doc.downloadUrl} />
+        </ActionPanel>
+      }
+    />
+  );
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

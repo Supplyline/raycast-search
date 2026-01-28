@@ -12,6 +12,25 @@
       "title": "Search Supplyline",
       "subtitle": "Products and SKUs",
       "description": "Search across Supplyline products and SKUs",
+      "mode": "view",
+      "arguments": [
+        {
+          "name": "scope",
+          "type": "dropdown",
+          "placeholder": "Scope",
+          "required": false,
+          "data": [
+            { "title": "Products", "value": "products" },
+            { "title": "Docs", "value": "docs" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "search-docs",
+      "title": "Search Supplyline Docs",
+      "subtitle": "Manuals and datasheets",
+      "description": "Search documentation only",
       "mode": "view"
     }
   ],
@@ -24,6 +43,18 @@
       "required": false,
       "default": true,
       "label": "Show prices in results"
+    },
+    {
+      "name": "defaultScope",
+      "title": "Default Search Scope",
+      "description": "Which index to search by default",
+      "type": "dropdown",
+      "required": false,
+      "default": "products",
+      "data": [
+        { "title": "Products", "value": "products" },
+        { "title": "Docs", "value": "docs" }
+      ]
     }
   ],
   "dependencies": {

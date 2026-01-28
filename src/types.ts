@@ -41,7 +41,7 @@ export interface DocEntity extends BaseEntity {
   entityType: "doc";
   primaryBehavior: "open";
   docType: "manual" | "datasheet" | "iom" | "sds";
-  fileUrl: string;
+  downloadUrl: string;
   fileSize?: number;
   seriesCode?: string;
 }
@@ -65,4 +65,5 @@ export interface SearchState {
 
 export interface Preferences {
   showPrices: boolean;
+  defaultScope?: Scope;
 }
