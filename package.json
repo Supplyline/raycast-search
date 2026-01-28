@@ -12,19 +12,7 @@
       "title": "Search Supplyline",
       "subtitle": "Products and SKUs",
       "description": "Search across Supplyline products and SKUs",
-      "mode": "view",
-      "arguments": [
-        {
-          "name": "scope",
-          "type": "dropdown",
-          "placeholder": "Scope",
-          "required": false,
-          "data": [
-            { "title": "Products", "value": "products" },
-            { "title": "Docs", "value": "docs" }
-          ]
-        }
-      ]
+      "mode": "view"
     },
     {
       "name": "search-docs",

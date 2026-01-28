@@ -92,8 +92,8 @@ Empty stack searches both indices; results show series, parents, and SKUs.
 
 - [x] Create `src/hooks/useNavigationStack.ts`
 - [x] Implement push (drill into series/parent)
-- [ ] Implement pop (backspace or ⌘+←)
-- [ ] Create `src/components/Breadcrumb.tsx`
+- [x] Implement pop (backspace or ⌘+←)
+- [x] Create `src/components/Breadcrumb.tsx`
 - [x] Add breadcrumb to list header
 - [x] Update search to filter by stack
 - [x] Clear query on drill
@@ -111,12 +111,12 @@ Can drill: LMI → PD Series → PD05 → SKUs. Backspace pops.
 
 ### Tasks
 
-- [ ] Create `src/search-docs.tsx` command
-- [ ] Add scope argument to main search (optional)
-- [ ] Update `useAlgoliaSearch.ts` for docs index
-- [ ] Add doc-specific list item rendering
-- [ ] Add QuickLook preview action (⌘+P)
-- [ ] Test docs search
+- [x] Create `src/search-docs.tsx` command
+- [x] Add scope argument to main search (optional)
+- [x] Update `useAlgoliaSearch.ts` for docs index
+- [x] Add doc-specific list item rendering
+- [x] Add QuickLook preview action (⌘+P)
+- [x] Test docs search
 
 ### Deliverable
 
