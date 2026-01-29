@@ -134,6 +134,7 @@ Can drill: LMI → PD Series → PD05 → SKUs. Backspace pops.
 - [x] Implement detail view with full metadata
 - [x] Add "Copy as Markdown" action (⌘+⇧+K)
 - [x] Add error handling (network, auth, empty results)
+- [x] Add TTL caching with offline fallback
 - [ ] Add loading states
 - [ ] Optimize search debouncing
 - [ ] Add stock status badges
@@ -192,7 +193,7 @@ npm run publish
 
 1. **Distribution:** Private extension (team-only) or submit to Raycast Store?
 2. **Icons:** Use generic icons or create Supplyline-branded set?
-3. **Offline:** Cache recent results for offline access?
+3. ~~**Offline:** Cache recent results for offline access?~~ ✅ Implemented with TTL caching
 4. **Analytics:** Track searches for Algolia Analytics?
 
 ---
