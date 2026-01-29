@@ -3,7 +3,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useAlgoliaSearch } from "./hooks/useAlgoliaSearch";
 import { useNavigationStack } from "./hooks/useNavigationStack";
 import { buildBreadcrumb } from "./components/Breadcrumb";
-import { fetchBrands, BrandItem, categorizeError } from "./utils/algolia";
+import { fetchBrandsWithFallback, BrandItem, categorizeError } from "./utils/algolia";
 import { SearchResult, Preferences, SkuEntity, DocEntity, BrowseEntity, Scope, StackItem } from "./types";
 
 function getIconForEntity(result: SearchResult): { source: Icon; tintColor: Color } {
@@ -30,6 +30,7 @@ export default function SearchSupplyline() {
   // Brands for initial view
   const [brands, setBrands] = useState<BrandItem[]>([]);
   const [brandsLoading, setBrandsLoading] = useState(true);
+  const [brandsStale, setBrandsStale] = useState(false);
 
   // Brands error state
   const [brandsError, setBrandsError] = useState<{ message: string; type: ErrorType } | undefined>();
@@ -38,8 +39,19 @@ export default function SearchSupplyline() {
   const loadBrands = useCallback(() => {
     setBrandsLoading(true);
     setBrandsError(undefined);
-    fetchBrands()
-      .then(setBrands)
+    setBrandsStale(false);
+    fetchBrandsWithFallback()
+      .then(({ brands: fetchedBrands, isStale }) => {
+        setBrands(fetchedBrands);
+        setBrandsStale(isStale);
+        if (isStale) {
+          showToast({
+            style: Toast.Style.Animated,
+            title: "Offline Mode",
+            message: "Showing cached brands",
+          });
+        }
+      })
       .catch((err) => {
         const algoliaError = categorizeError(err);
         setBrandsError({ message: algoliaError.message, type: algoliaError.type });
@@ -211,7 +223,10 @@ export default function SearchSupplyline() {
 
       {/* Initial brands list */}
       {showBrands && !brandsError && brands.length > 0 && (
-        <List.Section title="Brands" subtitle={`${brands.length} brands`}>
+        <List.Section
+          title="Brands"
+          subtitle={brandsStale ? `${brands.length} brands (cached)` : `${brands.length} brands`}
+        >
           {brands.map((brand) => {
             const brandIconName = brand.name.toLowerCase().replace(/\s+/g, "_");
             return (

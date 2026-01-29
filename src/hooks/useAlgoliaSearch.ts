@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { showToast, Toast } from "@raycast/api";
 import { SearchResult, StackItem, Scope } from "../types";
 import { searchProducts, searchDocs, categorizeError, AlgoliaErrorType } from "../utils/algolia";
+import { getFromCache, setInCache, getFromCacheStale, getSearchCacheKey, TTL } from "../utils/cache";
 
 // Custom debounce hook
 function useDebouncedValue<T>(value: T, delay: number): T {
@@ -32,6 +33,7 @@ export function useAlgoliaSearch(query: string, options: UseAlgoliaSearchOptions
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<SearchError | undefined>();
   const [retryCount, setRetryCount] = useState(0);
+  const [isStale, setIsStale] = useState(false);
 
   const debouncedQuery = useDebouncedValue(query, debounceMs);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -41,6 +43,20 @@ export function useAlgoliaSearch(query: string, options: UseAlgoliaSearchOptions
 
   const performSearch = useCallback(
     async (trimmedQuery: string) => {
+      const cacheKey = getSearchCacheKey(trimmedQuery, scope, stackKey);
+      const ttl = scope === "docs" ? TTL.DOCS : TTL.SEARCH_RESULTS;
+
+      // Try to get from cache first (for instant results)
+      const cached = getFromCache<SearchResult[]>(cacheKey);
+      if (cached) {
+        setResults(cached);
+        setIsLoading(false);
+        setError(undefined);
+        // Still fetch fresh data in background (stale-while-revalidate)
+        fetchFreshData(trimmedQuery, cacheKey, ttl);
+        return;
+      }
+
       try {
         let searchResults: SearchResult[];
 
@@ -55,8 +71,24 @@ export function useAlgoliaSearch(query: string, options: UseAlgoliaSearchOptions
 
         setResults(searchResults);
         setError(undefined);
+
+        // Save to cache
+        setInCache(cacheKey, searchResults, ttl);
       } catch (err) {
         if (abortControllerRef.current?.signal.aborted) return;
+
+        // Try to get stale data for offline fallback
+        const stale = getFromCacheStale<SearchResult[]>(cacheKey);
+        if (stale) {
+          setResults(stale.data);
+          setIsStale(true);
+          showToast({
+            style: Toast.Style.Animated,
+            title: "Offline Mode",
+            message: "Showing cached results",
+          });
+          return;
+        }
 
         const algoliaError = categorizeError(err);
         setError({ message: algoliaError.message, type: algoliaError.type });
@@ -72,6 +104,30 @@ export function useAlgoliaSearch(query: string, options: UseAlgoliaSearchOptions
         if (!abortControllerRef.current?.signal.aborted) {
           setIsLoading(false);
         }
+      }
+    },
+    [scope, stack, stackKey],
+  );
+
+  // Fetch fresh data in background (stale-while-revalidate)
+  const fetchFreshData = useCallback(
+    async (trimmedQuery: string, cacheKey: string, ttl: number) => {
+      try {
+        let searchResults: SearchResult[];
+
+        if (scope === "docs") {
+          searchResults = await searchDocs(trimmedQuery);
+        } else {
+          searchResults = await searchProducts(trimmedQuery, stack);
+        }
+
+        if (abortControllerRef.current?.signal.aborted) return;
+
+        // Update results if they changed
+        setResults(searchResults);
+        setInCache(cacheKey, searchResults, ttl);
+      } catch {
+        // Silently fail on background refresh - we already have cached data
       }
     },
     [scope, stack],
@@ -91,12 +147,14 @@ export function useAlgoliaSearch(query: string, options: UseAlgoliaSearchOptions
       setResults([]);
       setIsLoading(false);
       setError(undefined);
+      setIsStale(false);
       return;
     }
 
     // Create new abort controller
     abortControllerRef.current = new AbortController();
     setIsLoading(true);
+    setIsStale(false);
 
     performSearch(trimmedQuery);
 
@@ -110,7 +168,7 @@ export function useAlgoliaSearch(query: string, options: UseAlgoliaSearchOptions
     setRetryCount((c) => c + 1);
   }, []);
 
-  return { results, isLoading, error, retry };
+  return { results, isLoading, error, retry, isStale };
 }
 
 // Get user-friendly error title based on error type

@@ -1,5 +1,6 @@
 import { algoliasearch } from "algoliasearch";
 import { SkuEntity, BrowseEntity, DocEntity, StackItem, SearchResult } from "../types";
+import { getFromCache, setInCache, getFromCacheStale, TTL } from "./cache";
 
 // Algolia credentials (Search-Only API Key - safe to expose in client code)
 const ALGOLIA_APP_ID = "93ZW4STL69";
@@ -257,6 +258,14 @@ export interface BrandItem {
 
 // Fetch unique brands from series items in browse index
 export async function fetchBrands(): Promise<BrandItem[]> {
+  const CACHE_KEY = "brands";
+
+  // Try to get from cache first
+  const cached = getFromCache<BrandItem[]>(CACHE_KEY);
+  if (cached) {
+    return cached;
+  }
+
   const client = getAlgoliaClient();
 
   // Search for all series items (they have brand info)
@@ -296,7 +305,25 @@ export async function fetchBrands(): Promise<BrandItem[]> {
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  // Save to cache
+  setInCache(CACHE_KEY, brands, TTL.BRANDS);
+
   return brands;
+}
+
+// Get brands with stale fallback for offline mode
+export async function fetchBrandsWithFallback(): Promise<{ brands: BrandItem[]; isStale: boolean }> {
+  try {
+    const brands = await fetchBrands();
+    return { brands, isStale: false };
+  } catch (error) {
+    // Try to get stale data for offline fallback
+    const stale = getFromCacheStale<BrandItem[]>("brands");
+    if (stale) {
+      return { brands: stale.data, isStale: true };
+    }
+    throw error;
+  }
 }
 
 // Search docs index
