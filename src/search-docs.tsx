@@ -70,7 +70,7 @@ export default function SearchDocs() {
                     <Action
                       title="Copy"
                       icon={Icon.Clipboard}
-                      shortcut={{ modifiers: ["cmd"], key: "k" }}
+                      shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
                       onAction={() => handleCopy(doc)}
                     />
                     <Action
@@ -122,7 +122,7 @@ ${doc.fileSize ? `**Size:** ${formatFileSize(doc.fileSize)}` : ""}
           <Action
             title="Copy"
             icon={Icon.Clipboard}
-            shortcut={{ modifiers: ["cmd"], key: "k" }}
+            shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
             onAction={async () => {
               const text = `${doc.title}\n${doc.downloadUrl}`;
               await Clipboard.copy(text);

@@ -263,7 +263,7 @@ function SearchResultItem({ item, showPrices, onCopy, onSelect, onPop, canPop }:
             <Action
               title="Copy"
               icon={Icon.Clipboard}
-              shortcut={{ modifiers: ["cmd"], key: "k" }}
+              shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
               onAction={() => onCopy(item)}
             />
           </ActionPanel.Section>
