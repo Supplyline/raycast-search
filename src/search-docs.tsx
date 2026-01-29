@@ -18,7 +18,7 @@ export default function SearchDocs() {
   }, []);
 
   const handleCopyMarkdown = useCallback(async (item: DocEntity) => {
-    const text = `[${item.title}](${item.downloadUrl})`;
+    const text = `[${item.title}](${item.downloadUrl}) `;
     await Clipboard.copy(text);
     await showToast({ style: Toast.Style.Success, title: "Copied as Markdown" });
   }, []);
@@ -134,7 +134,7 @@ ${doc.fileSize ? `**Size:** ${formatFileSize(doc.fileSize)}` : ""}
             icon={Icon.Link}
             shortcut={{ modifiers: ["cmd", "shift"], key: "k" }}
             onAction={async () => {
-              const text = `[${doc.title}](${doc.downloadUrl})`;
+              const text = `[${doc.title}](${doc.downloadUrl}) `;
               await Clipboard.copy(text);
               await showToast({ style: Toast.Style.Success, title: "Copied as Markdown" });
             }}

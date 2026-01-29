@@ -71,6 +71,24 @@ export default function SearchSupplyline() {
     await showToast({ style: Toast.Style.Success, title: "Copied" });
   }, []);
 
+  const handleCopyMarkdown = useCallback(async (item: SearchResult) => {
+    let markdown: string;
+    const url = item.urlShop || item.urlAbout || "";
+    
+    if (item.entityType === "doc") {
+      const doc = item as DocEntity;
+      markdown = `[${doc.title}](${doc.downloadUrl}) `;
+    } else if (item.entityType === "sku") {
+      const sku = item as SkuEntity;
+      const price = sku.price ? ` — $${sku.price.toFixed(2)}` : "";
+      markdown = url ? `[${sku.mno}](${url})${price}` : `**${sku.mno}**${price}`;
+    } else {
+      markdown = url ? `[${item.title}](${url}) ` : `**${item.title}** `;
+    }
+    await Clipboard.copy(markdown);
+    await showToast({ style: Toast.Style.Success, title: "Copied as Markdown" });
+  }, []);
+
   const handleSelect = useCallback(
     (item: SearchResult) => {
       if (item.primaryBehavior === "drill") {
@@ -201,7 +219,7 @@ export default function SearchSupplyline() {
           subtitle={`${results.length} items`}
         >
           {results.map((item) => (
-            <SearchResultItem key={item.objectID} item={item} showPrices={showPrices} onCopy={handleCopy} onSelect={handleSelect} onPop={handlePop} canPop={canPop} />
+            <SearchResultItem key={item.objectID} item={item} showPrices={showPrices} onCopy={handleCopy} onCopyMarkdown={handleCopyMarkdown} onSelect={handleSelect} onPop={handlePop} canPop={canPop} />
           ))}
         </List.Section>
       )}
@@ -213,12 +231,13 @@ interface SearchResultItemProps {
   item: SearchResult;
   showPrices: boolean;
   onCopy: (item: SearchResult) => void;
+  onCopyMarkdown: (item: SearchResult) => void;
   onSelect: (item: SearchResult) => void;
   onPop?: () => void;
   canPop?: boolean;
 }
 
-function SearchResultItem({ item, showPrices, onCopy, onSelect, onPop, canPop }: SearchResultItemProps) {
+function SearchResultItem({ item, showPrices, onCopy, onCopyMarkdown, onSelect, onPop, canPop }: SearchResultItemProps) {
   const subtitle = getSubtitle(item, showPrices);
   const accessories = getAccessories(item);
   const icon = getIconForEntity(item);
@@ -265,6 +284,12 @@ function SearchResultItem({ item, showPrices, onCopy, onSelect, onPop, canPop }:
               icon={Icon.Clipboard}
               shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
               onAction={() => onCopy(item)}
+            />
+            <Action
+              title="Copy as Markdown"
+              icon={Icon.Link}
+              shortcut={{ modifiers: ["cmd", "shift"], key: "k" }}
+              onAction={() => onCopyMarkdown(item)}
             />
           </ActionPanel.Section>
           {canPop && onPop && (
