@@ -1,8 +1,9 @@
 import { Action, ActionPanel, List, Detail, Icon, Color, getPreferenceValues, showToast, Toast, Clipboard } from "@raycast/api";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useAlgoliaSearch } from "./hooks/useAlgoliaSearch";
 import { useNavigationStack } from "./hooks/useNavigationStack";
 import { BreadcrumbSection } from "./components/Breadcrumb";
+import { fetchBrands, BrandItem } from "./utils/algolia";
 import { SearchResult, Preferences, SkuEntity, DocEntity, Scope, StackItem } from "./types";
 
 function getIconForEntity(result: SearchResult): { source: Icon; tintColor: Color } {
@@ -24,9 +25,36 @@ export default function SearchSupplyline() {
   const { showPrices, defaultScope } = getPreferenceValues<Preferences>();
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<Scope>(defaultScope || "products");
-  const { stack, pushMultiple, pop, hasType, canPop } = useNavigationStack();
+  const { stack, pushMultiple, push, pop, hasType, canPop } = useNavigationStack();
+
+  // Brands for initial view
+  const [brands, setBrands] = useState<BrandItem[]>([]);
+  const [brandsLoading, setBrandsLoading] = useState(true);
+
+  // Fetch brands on mount
+  useEffect(() => {
+    fetchBrands()
+      .then(setBrands)
+      .catch((err) => {
+        console.error("Failed to fetch brands:", err);
+        showToast({ style: Toast.Style.Failure, title: "Failed to load brands" });
+      })
+      .finally(() => setBrandsLoading(false));
+  }, []);
+
+  // Show brands when: no query, no stack, products scope
+  const showBrands = query.trim() === "" && stack.length === 0 && scope === "products";
 
   const { results, isLoading, error } = useAlgoliaSearch(query, { stack, scope });
+
+  // Handle brand selection
+  const handleBrandSelect = useCallback(
+    (brand: BrandItem) => {
+      push({ type: "brand", id: brand.id, label: brand.name });
+      setQuery("");
+    },
+    [push]
+  );
 
   const handleCopy = useCallback(async (item: SearchResult) => {
     let text: string;
@@ -117,7 +145,7 @@ export default function SearchSupplyline() {
 
   return (
     <List
-      isLoading={isLoading}
+      isLoading={showBrands ? brandsLoading : isLoading}
       navigationTitle={getNavigationTitle()}
       searchBarPlaceholder={getPlaceholder()}
       searchText={query}
@@ -136,7 +164,32 @@ export default function SearchSupplyline() {
     >
       <BreadcrumbSection stack={stack} onPop={handlePop} />
 
-      {results.length === 0 && query.length >= 2 && !isLoading && (
+      {/* Initial brands list */}
+      {showBrands && brands.length > 0 && (
+        <List.Section title="Brands" subtitle={`${brands.length} brands`}>
+          {brands.map((brand) => (
+            <List.Item
+              key={brand.id}
+              icon={{ source: Icon.Building, tintColor: Color.Blue }}
+              title={brand.name}
+              subtitle={`${brand.seriesCount} series`}
+              accessories={[{ icon: Icon.ChevronRight }]}
+              actions={
+                <ActionPanel>
+                  <Action
+                    title="Browse Series"
+                    icon={Icon.ChevronRight}
+                    onAction={() => handleBrandSelect(brand)}
+                  />
+                </ActionPanel>
+              }
+            />
+          ))}
+        </List.Section>
+      )}
+
+      {/* Search results */}
+      {!showBrands && results.length === 0 && query.length >= 2 && !isLoading && (
         <List.EmptyView
           title="No Results"
           description={error || `No matches for "${query}"`}
@@ -144,7 +197,7 @@ export default function SearchSupplyline() {
         />
       )}
 
-      {results.length > 0 && (
+      {!showBrands && results.length > 0 && (
         <List.Section title="Results" subtitle={`${results.length} items`}>
           {results.map((item) => (
             <SearchResultItem key={item.objectID} item={item} showPrices={showPrices} onCopy={handleCopy} onSelect={handleSelect} onPop={handlePop} canPop={canPop} />

@@ -149,8 +149,26 @@ export async function searchProducts(
   // If stack has items, determine which index to search based on stack depth
   const lastStackItem = stack[stack.length - 1];
 
+  // Brand level → search browse index for Series items of that brand
+  if (lastStackItem.type === "brand") {
+    const seriesFilters = filters
+      ? `${filters} AND entityType:"series"`
+      : `entityType:"series"`;
+    const response = await client.searchSingleIndex<BrowseEntity>({
+      indexName: INDEX_NAMES.browse,
+      searchParams: {
+        ...browseSearchParams,
+        filters: seriesFilters,
+        attributesToRetrieve: ["*"],
+      },
+    });
+    return response.hits.map((hit) => ({
+      ...hit,
+      primaryBehavior: "drill" as const,
+    }));
+  }
+
   // Series level → search browse index for Parent items
-  // Parent level → search SKU index for SKU items
   if (lastStackItem.type === "series") {
     // Add entityType:"parent" filter to only get Parent items, not the Series itself
     const parentFilters = filters
@@ -170,7 +188,7 @@ export async function searchProducts(
     }));
   }
 
-  // Parent level or brand level → search SKU index
+  // Parent level → search SKU index
   const response = await client.searchSingleIndex<SkuEntity>({
     indexName: INDEX_NAMES.sku,
     searchParams: skuSearchParams,
@@ -179,6 +197,57 @@ export async function searchProducts(
     ...hit,
     primaryBehavior: "open" as const,
   }));
+}
+
+// Brand item for initial browse view
+export interface BrandItem {
+  id: string;       // brandSlug (e.g., "lmi")
+  name: string;     // brand display name (e.g., "LMI")
+  seriesCount: number;
+}
+
+// Fetch unique brands from series items in browse index
+export async function fetchBrands(): Promise<BrandItem[]> {
+  const client = getAlgoliaClient();
+  
+  // Search for all series items (they have brand info)
+  const response = await client.searchSingleIndex<BrowseEntity>({
+    indexName: INDEX_NAMES.browse,
+    searchParams: {
+      query: "",
+      filters: 'entityType:"series"',
+      hitsPerPage: 1000, // Get all series to extract brands
+      attributesToRetrieve: ["brand", "brandSlug"],
+    },
+  });
+
+  // Extract unique brands and count series per brand
+  const brandMap = new Map<string, { name: string; count: number }>();
+  
+  for (const hit of response.hits) {
+    const slug = hit.brandSlug || hit.brand?.toLowerCase().replace(/\s+/g, "-");
+    const name = hit.brand;
+    
+    if (slug && name) {
+      const existing = brandMap.get(slug);
+      if (existing) {
+        existing.count++;
+      } else {
+        brandMap.set(slug, { name, count: 1 });
+      }
+    }
+  }
+
+  // Convert to array and sort alphabetically
+  const brands: BrandItem[] = Array.from(brandMap.entries())
+    .map(([id, { name, count }]) => ({
+      id,
+      name,
+      seriesCount: count,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  return brands;
 }
 
 // Search docs index
