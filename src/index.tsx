@@ -251,11 +251,16 @@ function SearchResultItem({ item, showPrices, onCopy, onCopyMarkdown, onSelect, 
   const isParent = item.entityType === "parent";
   const isSeries = item.entityType === "series";
   
-  // Subtitle for parent/series items: "Brand • X SKUs"
+  // Subtitle based on item type
   let subtitle: string | undefined;
   if (isParent || isSeries) {
     const browse = item as BrowseEntity;
     subtitle = `${browse.brand} • ${browse.childCount} SKUs`;
+  } else if (isSku) {
+    const sku = item as SkuEntity;
+    const priceStr = sku.price != null ? `$${sku.price.toFixed(2)}` : "N/A";
+    const stockStr = sku.inStock ? "In Stock" : "Out of Stock";
+    subtitle = `${priceStr} • ${stockStr}`;
   }
 
   return (
