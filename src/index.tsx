@@ -2,7 +2,8 @@ import { Action, ActionPanel, List, Detail, Icon, Color, getPreferenceValues, sh
 import { useState, useCallback } from "react";
 import { useAlgoliaSearch } from "./hooks/useAlgoliaSearch";
 import { useNavigationStack } from "./hooks/useNavigationStack";
-import { SearchResult, Preferences, SkuEntity, DocEntity, Scope } from "./types";
+import { BreadcrumbSection } from "./components/Breadcrumb";
+import { SearchResult, Preferences, SkuEntity, DocEntity, Scope, StackItem } from "./types";
 
 function getIconForEntity(result: SearchResult): { source: Icon; tintColor: Color } {
   switch (result.entityType) {
@@ -23,7 +24,7 @@ export default function SearchSupplyline() {
   const { showPrices, defaultScope } = getPreferenceValues<Preferences>();
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<Scope>(defaultScope || "products");
-  const { stack, push, pop, breadcrumb, canPop } = useNavigationStack();
+  const { stack, pushMultiple, pop, hasType, canPop } = useNavigationStack();
 
   const { results, isLoading, error } = useAlgoliaSearch(query, { stack, scope });
 
@@ -45,22 +46,43 @@ export default function SearchSupplyline() {
   const handleSelect = useCallback(
     (item: SearchResult) => {
       if (item.primaryBehavior === "drill") {
-        // Series: use drillKey.series (flat key) to filter children
+        // Use drillKey values directly from Algolia record
+        const brandKey = item["drillKey.brand"];
         const seriesKey = item["drillKey.series"];
-        if (item.entityType === "series" && seriesKey) {
-          push({ type: "series", id: seriesKey, label: item.title });
-          setQuery("");
+        const parentKey = item["drillKey.parent"];
+
+        // Build items to push - always include brand first if not already in stack
+        const itemsToPush: StackItem[] = [];
+
+        // Always add brand first if not already present
+        if (brandKey && !hasType("brand")) {
+          itemsToPush.push({ type: "brand", id: brandKey, label: item.brand });
         }
-        // Parent: use drillKey.parent (flat key) to filter children
-        else if (item.entityType === "parent" && item["drillKey.parent"]) {
-          push({ type: "parent", id: item["drillKey.parent"], label: item.title });
+
+        // Series: use drillKey.series directly (series items have this field)
+        if (item.entityType === "series" && seriesKey) {
+          if (!hasType("series")) {
+            itemsToPush.push({ type: "series", id: seriesKey, label: item.title });
+          }
+        }
+        // Parent: add series (if not present) + parent
+        else if (item.entityType === "parent" && parentKey) {
+          // If drilling into parent, also add series if not present
+          if (seriesKey && !hasType("series")) {
+            itemsToPush.push({ type: "series", id: seriesKey, label: seriesKey.toUpperCase() });
+          }
+          itemsToPush.push({ type: "parent", id: parentKey, label: item.title });
+        }
+
+        if (itemsToPush.length > 0) {
+          pushMultiple(itemsToPush);
           setQuery("");
         }
       } else if (item.primaryBehavior === "open" && item.urlShop) {
         open(item.urlShop);
       }
     },
-    [push]
+    [pushMultiple, hasType]
   );
 
   const handlePop = useCallback(() => {
@@ -89,7 +111,6 @@ export default function SearchSupplyline() {
   };
 
   const getNavigationTitle = () => {
-    if (breadcrumb) return breadcrumb;
     if (scope === "docs") return "Search Supplyline Docs";
     return "Search Supplyline";
   };
@@ -113,18 +134,7 @@ export default function SearchSupplyline() {
         </List.Dropdown>
       }
     >
-      {canPop && (
-        <List.Item
-          icon={Icon.ArrowLeft}
-          title="Go Back"
-          subtitle={stack.length > 1 ? `Return to ${stack[stack.length - 2]?.label}` : "Return to Search"}
-          actions={
-            <ActionPanel>
-              <Action title="Go Back" icon={Icon.ArrowLeft} shortcut={{ modifiers: ["cmd"], key: "arrowLeft" }} onAction={handlePop} />
-            </ActionPanel>
-          }
-        />
-      )}
+      <BreadcrumbSection stack={stack} onPop={handlePop} />
 
       {results.length === 0 && query.length >= 2 && !isLoading && (
         <List.EmptyView

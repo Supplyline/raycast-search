@@ -4,15 +4,19 @@ import { StackItem } from "../types";
 export function useNavigationStack() {
   const [stack, setStack] = useState<StackItem[]>([]);
 
-  // Accept StackItem directly - the caller is responsible for extracting the correct data
+  /**
+   * Push a single item to the stack
+   */
   const push = useCallback((item: StackItem) => {
-    console.log("useNavigationStack.push called with:", item);
-    setStack((prev) => {
-      const newStack = [...prev, item];
-      console.log("Stack updated to:", newStack);
-      return newStack;
-    });
-    return true;
+    setStack((prev) => [...prev, item]);
+  }, []);
+
+  /**
+   * Push multiple items to the stack at once
+   * Used when drilling requires adding brand + series/parent together
+   */
+  const pushMultiple = useCallback((items: StackItem[]) => {
+    setStack((prev) => [...prev, ...items]);
   }, []);
 
   const pop = useCallback(() => {
@@ -26,14 +30,21 @@ export function useNavigationStack() {
     setStack([]);
   }, []);
 
-  const breadcrumb = stack.map((item) => item.label).join(" > ");
+  /**
+   * Check if a specific type already exists in the stack
+   */
+  const hasType = useCallback(
+    (type: StackItem["type"]) => stack.some((item) => item.type === type),
+    [stack]
+  );
 
   return {
     stack,
     push,
+    pushMultiple,
     pop,
     clear,
-    breadcrumb,
+    hasType,
     canPop: stack.length > 0,
   };
 }
