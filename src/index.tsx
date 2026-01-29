@@ -1,4 +1,4 @@
-import { Action, ActionPanel, List, Detail, Icon, Color, getPreferenceValues, showToast, Toast, Clipboard } from "@raycast/api";
+import { Action, ActionPanel, List, Icon, Color, getPreferenceValues, showToast, Toast, Clipboard } from "@raycast/api";
 import { useState, useCallback, useEffect } from "react";
 import { useAlgoliaSearch } from "./hooks/useAlgoliaSearch";
 import { useNavigationStack } from "./hooks/useNavigationStack";
@@ -161,9 +161,14 @@ export default function SearchSupplyline() {
     return "Search Supplyline";
   };
 
+  // Show detail panel only for SKU items
+  const hasSkuResults = results.some((r) => r.entityType === "sku");
+  const showDetailPanel = !showBrands && hasSkuResults;
+
   return (
     <List
       isLoading={showBrands ? brandsLoading : isLoading}
+      isShowingDetail={showDetailPanel}
       navigationTitle={getNavigationTitle()}
       searchBarPlaceholder={getPlaceholder()}
       searchText={query}
@@ -238,19 +243,17 @@ interface SearchResultItemProps {
 }
 
 function SearchResultItem({ item, showPrices, onCopy, onCopyMarkdown, onSelect, onPop, canPop }: SearchResultItemProps) {
-  const subtitle = getSubtitle(item, showPrices);
-  const accessories = getAccessories(item);
   const icon = getIconForEntity(item);
   const title = item.entityType === "sku" ? (item as SkuEntity).mno : item.title;
   const isDoc = item.entityType === "doc";
   const doc = isDoc ? (item as DocEntity) : null;
+  const isSku = item.entityType === "sku";
 
   return (
     <List.Item
       icon={icon}
       title={title}
-      subtitle={subtitle}
-      accessories={accessories}
+      detail={isSku ? <ItemDetail item={item} /> : undefined}
       actions={
         <ActionPanel>
           <ActionPanel.Section>
@@ -303,6 +306,49 @@ function SearchResultItem({ item, showPrices, onCopy, onCopyMarkdown, onSelect, 
             </ActionPanel.Section>
           )}
         </ActionPanel>
+      }
+    />
+  );
+}
+
+function ItemDetail({ item }: { item: SearchResult }) {
+  // Only render for SKU items
+  if (item.entityType !== "sku") return null;
+  
+  const sku = item as SkuEntity;
+  
+  const seriesName = sku["drillKey.series"]?.toUpperCase() || "";
+  const subtitle = seriesName ? `${sku.brand} • ${seriesName} Series` : sku.brand;
+  const priceText = sku.price != null ? `$${sku.price.toFixed(2)}` : "N/A";
+  
+  return (
+    <List.Item.Detail
+      metadata={
+        <List.Item.Detail.Metadata>
+          <List.Item.Detail.Metadata.Label title={sku.mno} />
+          <List.Item.Detail.Metadata.Label title={subtitle} />
+          <List.Item.Detail.Metadata.Separator />
+          <List.Item.Detail.Metadata.TagList title="Price">
+            <List.Item.Detail.Metadata.TagList.Item
+              text={priceText}
+              color={Color.Blue}
+            />
+          </List.Item.Detail.Metadata.TagList>
+          <List.Item.Detail.Metadata.TagList title="Stock">
+            <List.Item.Detail.Metadata.TagList.Item
+              text={sku.inStock ? "In Stock" : "Out of Stock"}
+              color={sku.inStock ? Color.Green : Color.Red}
+            />
+          </List.Item.Detail.Metadata.TagList>
+          {sku.specs && Object.keys(sku.specs).length > 0 && (
+            <>
+              <List.Item.Detail.Metadata.Separator />
+              {Object.entries(sku.specs).map(([key, value]) => (
+                <List.Item.Detail.Metadata.Label key={key} title={key} text={value} />
+              ))}
+            </>
+          )}
+        </List.Item.Detail.Metadata>
       }
     />
   );

@@ -131,7 +131,7 @@ Can drill: LMI → PD Series → PD05 → SKUs. Backspace pops.
 ### Tasks
 
 - [ ] Add entity-specific icons (series, parent, SKU, doc)
-- [ ] Implement detail view with full metadata
+- [x] Implement detail view with full metadata
 - [x] Add "Copy as Markdown" action (⌘+⇧+K)
 - [ ] Add error handling (network, auth, empty results)
 - [ ] Add loading states
