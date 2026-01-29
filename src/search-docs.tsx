@@ -1,4 +1,4 @@
-import { Action, ActionPanel, List, Detail, Icon, Color, Clipboard, showToast, Toast } from "@raycast/api";
+import { Action, ActionPanel, List, Icon, Color, Clipboard, showToast, Toast } from "@raycast/api";
 import { useState, useCallback } from "react";
 import { useAlgoliaSearch } from "./hooks/useAlgoliaSearch";
 import { DocEntity } from "./types";
@@ -23,9 +23,12 @@ export default function SearchDocs() {
     await showToast({ style: Toast.Style.Success, title: "Copied as Markdown" });
   }, []);
 
+  const showDetailPanel = results.length > 0;
+
   return (
     <List
       isLoading={isLoading}
+      isShowingDetail={showDetailPanel}
       searchBarPlaceholder="Search manuals, datasheets, IOMs..."
       searchText={query}
       onSearchTextChange={setQuery}
@@ -47,23 +50,12 @@ export default function SearchDocs() {
               key={doc.objectID}
               icon={{ source: getDocIcon(doc.docType), tintColor: Color.Orange }}
               title={doc.title}
-              subtitle={`${doc.brand} • ${doc.docType?.toUpperCase() || "DOC"}`}
-              accessories={[
-                doc.fileSize ? { text: formatFileSize(doc.fileSize) } : undefined,
-              ].filter(Boolean) as List.Item.Accessory[]}
+              detail={<DocDetail doc={doc} />}
               actions={
                 <ActionPanel>
                   <ActionPanel.Section>
                     {doc.downloadUrl && (
                       <Action.OpenInBrowser title="Open Document" url={doc.downloadUrl} icon={Icon.Globe} />
-                    )}
-                    {doc.downloadUrl && (
-                      <Action.Push
-                        title="Quick Look"
-                        icon={Icon.Eye}
-                        shortcut={{ modifiers: ["cmd"], key: "p" }}
-                        target={<QuickLookPreview doc={doc} />}
-                      />
                     )}
                   </ActionPanel.Section>
                   <ActionPanel.Section>
@@ -90,71 +82,40 @@ export default function SearchDocs() {
   );
 }
 
-// QuickLook preview component using Detail view
-function QuickLookPreview({ doc }: { doc: DocEntity }) {
-  const markdown = `# ${doc.title}
-
-**Brand:** ${doc.brand}
-**Type:** ${doc.docType?.toUpperCase() || "Document"}
-${doc.fileSize ? `**Size:** ${formatFileSize(doc.fileSize)}` : ""}
-
----
-
-[📄 Open Document](${doc.downloadUrl})
-`;
-
+// Detail panel for document items
+function DocDetail({ doc }: { doc: DocEntity }) {
   return (
-    <Detail
-      markdown={markdown}
-      navigationTitle={doc.title}
+    <List.Item.Detail
       metadata={
-        <Detail.Metadata>
-          <Detail.Metadata.Label title="Brand" text={doc.brand} />
-          <Detail.Metadata.Label title="Type" text={doc.docType?.toUpperCase() || "Document"} />
-          {doc.fileSize && <Detail.Metadata.Label title="Size" text={formatFileSize(doc.fileSize)} />}
-          <Detail.Metadata.Separator />
-          <Detail.Metadata.Link title="Document URL" target={doc.downloadUrl} text="Open in Browser" />
-        </Detail.Metadata>
-      }
-      actions={
-        <ActionPanel>
-          <Action.OpenInBrowser title="Open Document" url={doc.downloadUrl} icon={Icon.Globe} />
-          <Action
-            title="Copy"
-            icon={Icon.Clipboard}
-            shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
-            onAction={async () => {
-              const text = `${doc.title}\n${doc.downloadUrl}`;
-              await Clipboard.copy(text);
-              await showToast({ style: Toast.Style.Success, title: "Copied" });
-            }}
-          />
-          <Action
-            title="Copy as Markdown"
-            icon={Icon.Link}
-            shortcut={{ modifiers: ["cmd", "shift"], key: "k" }}
-            onAction={async () => {
-              const text = `[${doc.title}](${doc.downloadUrl}) `;
-              await Clipboard.copy(text);
-              await showToast({ style: Toast.Style.Success, title: "Copied as Markdown" });
-            }}
-          />
-        </ActionPanel>
+        <List.Item.Detail.Metadata>
+          <List.Item.Detail.Metadata.Label title={doc.title} />
+          <List.Item.Detail.Metadata.Separator />
+          <List.Item.Detail.Metadata.Label title="Brand" text={doc.brand} />
+          <List.Item.Detail.Metadata.Label title="Type" text={doc.docType?.toUpperCase() || "Document"} />
+          {doc.fileSize && <List.Item.Detail.Metadata.Label title="Size" text={formatFileSize(doc.fileSize)} />}
+          <List.Item.Detail.Metadata.Separator />
+          <List.Item.Detail.Metadata.Link title="Document URL" target={doc.downloadUrl} text="Open in Browser" />
+        </List.Item.Detail.Metadata>
       }
     />
   );
 }
 
 function getDocIcon(docType?: string): Icon {
-  switch (docType) {
+  switch (docType?.toLowerCase()) {
     case "manual":
       return Icon.Book;
     case "datasheet":
+    case "cut":
       return Icon.Document;
     case "iom":
-      return Icon.Wrench;
+      return Icon.Hammer;
     case "sds":
-      return Icon.ExclamationMark;
+      return Icon.Warning;
+    case "idc":
+      return Icon.List;
+    case "bro":
+      return Icon.Megaphone;
     default:
       return Icon.Document;
   }
