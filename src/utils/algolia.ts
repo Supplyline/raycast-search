@@ -5,6 +5,66 @@ import { SkuEntity, BrowseEntity, DocEntity, StackItem, SearchResult } from "../
 const ALGOLIA_APP_ID = "93ZW4STL69";
 const ALGOLIA_API_KEY = "b038eef0b9904896a2a0986ba6ec7816";
 
+// Custom error types for better error handling
+export type AlgoliaErrorType = "network" | "auth" | "rate_limit" | "not_found" | "unknown";
+
+export class AlgoliaError extends Error {
+  type: AlgoliaErrorType;
+
+  constructor(message: string, type: AlgoliaErrorType) {
+    super(message);
+    this.name = "AlgoliaError";
+    this.type = type;
+  }
+}
+
+// Categorize error based on response/error details
+export function categorizeError(error: unknown): AlgoliaError {
+  if (error instanceof AlgoliaError) return error;
+
+  const message = error instanceof Error ? error.message : String(error);
+  const lowerMessage = message.toLowerCase();
+
+  // Network errors
+  if (
+    lowerMessage.includes("network") ||
+    lowerMessage.includes("fetch") ||
+    lowerMessage.includes("enotfound") ||
+    lowerMessage.includes("econnrefused") ||
+    lowerMessage.includes("timeout") ||
+    lowerMessage.includes("offline")
+  ) {
+    return new AlgoliaError("Unable to connect. Check your internet connection.", "network");
+  }
+
+  // Auth errors
+  if (
+    lowerMessage.includes("invalid api key") ||
+    lowerMessage.includes("unauthorized") ||
+    lowerMessage.includes("403") ||
+    lowerMessage.includes("invalid application")
+  ) {
+    return new AlgoliaError("Invalid API credentials. Please check configuration.", "auth");
+  }
+
+  // Rate limit errors
+  if (
+    lowerMessage.includes("rate limit") ||
+    lowerMessage.includes("too many requests") ||
+    lowerMessage.includes("429")
+  ) {
+    return new AlgoliaError("Too many requests. Please wait a moment.", "rate_limit");
+  }
+
+  // Index not found
+  if (lowerMessage.includes("index") && lowerMessage.includes("not found")) {
+    return new AlgoliaError("Search index not found.", "not_found");
+  }
+
+  // Unknown error
+  return new AlgoliaError(message || "An unexpected error occurred.", "unknown");
+}
+
 const INDEX_NAMES = {
   browse: "dev_products_browse",
   sku: "dev_products_sku",
@@ -84,21 +144,14 @@ function getGeneralSearchParams(query: string, filters: string) {
 }
 
 // Federated search across products indices
-export async function searchProducts(
-  query: string,
-  stack: StackItem[]
-): Promise<SearchResult[]> {
+export async function searchProducts(query: string, stack: StackItem[]): Promise<SearchResult[]> {
   const client = getAlgoliaClient();
   const filters = buildFilters(stack);
   const isMno = isMnoQuery(query);
 
   // Use different search params for each index (browse doesn't have mno field)
-  const browseSearchParams = isMno
-    ? getMnoSearchParamsBrowse(query, filters)
-    : getGeneralSearchParams(query, filters);
-  const skuSearchParams = isMno
-    ? getMnoSearchParamsSku(query, filters)
-    : getGeneralSearchParams(query, filters);
+  const browseSearchParams = isMno ? getMnoSearchParamsBrowse(query, filters) : getGeneralSearchParams(query, filters);
+  const skuSearchParams = isMno ? getMnoSearchParamsSku(query, filters) : getGeneralSearchParams(query, filters);
 
   // If stack is empty, search both indices
   if (stack.length === 0) {
@@ -151,9 +204,7 @@ export async function searchProducts(
 
   // Brand level → search browse index for Series items of that brand
   if (lastStackItem.type === "brand") {
-    const seriesFilters = filters
-      ? `${filters} AND entityType:"series"`
-      : `entityType:"series"`;
+    const seriesFilters = filters ? `${filters} AND entityType:"series"` : `entityType:"series"`;
     const response = await client.searchSingleIndex<BrowseEntity>({
       indexName: INDEX_NAMES.browse,
       searchParams: {
@@ -171,9 +222,7 @@ export async function searchProducts(
   // Series level → search browse index for Parent items
   if (lastStackItem.type === "series") {
     // Add entityType:"parent" filter to only get Parent items, not the Series itself
-    const parentFilters = filters
-      ? `${filters} AND entityType:"parent"`
-      : `entityType:"parent"`;
+    const parentFilters = filters ? `${filters} AND entityType:"parent"` : `entityType:"parent"`;
     const response = await client.searchSingleIndex<BrowseEntity>({
       indexName: INDEX_NAMES.browse,
       searchParams: {
@@ -201,15 +250,15 @@ export async function searchProducts(
 
 // Brand item for initial browse view
 export interface BrandItem {
-  id: string;       // brandSlug (e.g., "lmi")
-  name: string;     // brand display name (e.g., "LMI")
+  id: string; // brandSlug (e.g., "lmi")
+  name: string; // brand display name (e.g., "LMI")
   seriesCount: number;
 }
 
 // Fetch unique brands from series items in browse index
 export async function fetchBrands(): Promise<BrandItem[]> {
   const client = getAlgoliaClient();
-  
+
   // Search for all series items (they have brand info)
   const response = await client.searchSingleIndex<BrowseEntity>({
     indexName: INDEX_NAMES.browse,
@@ -223,11 +272,11 @@ export async function fetchBrands(): Promise<BrandItem[]> {
 
   // Extract unique brands and count series per brand
   const brandMap = new Map<string, { name: string; count: number }>();
-  
+
   for (const hit of response.hits) {
     const slug = hit.brandSlug || hit.brand?.toLowerCase().replace(/\s+/g, "-");
     const name = hit.brand;
-    
+
     if (slug && name) {
       const existing = brandMap.get(slug);
       if (existing) {

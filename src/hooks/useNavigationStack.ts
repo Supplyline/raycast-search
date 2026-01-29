@@ -33,10 +33,7 @@ export function useNavigationStack() {
   /**
    * Check if a specific type already exists in the stack
    */
-  const hasType = useCallback(
-    (type: StackItem["type"]) => stack.some((item) => item.type === type),
-    [stack]
-  );
+  const hasType = useCallback((type: StackItem["type"]) => stack.some((item) => item.type === type), [stack]);
 
   return {
     stack,
@@ -48,4 +45,3 @@ export function useNavigationStack() {
     canPop: stack.length > 0,
   };
 }
-

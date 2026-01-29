@@ -6,7 +6,7 @@ import { DocEntity } from "./types";
 export default function SearchDocs() {
   const [query, setQuery] = useState("");
 
-  const { results, isLoading, error } = useAlgoliaSearch(query, {
+  const { results, isLoading, error, retry } = useAlgoliaSearch(query, {
     scope: "docs",
     stack: [],
   });
@@ -34,12 +34,23 @@ export default function SearchDocs() {
       onSearchTextChange={setQuery}
       throttle
     >
-      {results.length === 0 && query.length >= 2 && !isLoading && (
+      {/* Error state */}
+      {error && !isLoading && (
         <List.EmptyView
-          title="No Documents Found"
-          description={error || `No matches for "${query}"`}
-          icon={Icon.Document}
+          title={getErrorTitle(error.type)}
+          description={error.message}
+          icon={getErrorIcon(error.type)}
+          actions={
+            <ActionPanel>
+              <Action title="Try Again" icon={Icon.ArrowClockwise} onAction={retry} />
+            </ActionPanel>
+          }
         />
+      )}
+
+      {/* Empty state */}
+      {!error && results.length === 0 && query.length >= 2 && !isLoading && (
+        <List.EmptyView title="No Documents Found" description={`No matches for "${query}"`} icon={Icon.Document} />
       )}
 
       <List.Section title="Documents" subtitle={results.length > 0 ? `${results.length} items` : undefined}>
@@ -127,3 +138,35 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+// Error handling helpers
+type ErrorType = "network" | "auth" | "rate_limit" | "not_found" | "unknown";
+
+function getErrorTitle(type: ErrorType): string {
+  switch (type) {
+    case "network":
+      return "Connection Error";
+    case "auth":
+      return "Authentication Error";
+    case "rate_limit":
+      return "Too Many Requests";
+    case "not_found":
+      return "Not Found";
+    default:
+      return "Search Error";
+  }
+}
+
+function getErrorIcon(type: ErrorType): Icon {
+  switch (type) {
+    case "network":
+      return Icon.Wifi;
+    case "auth":
+      return Icon.Lock;
+    case "rate_limit":
+      return Icon.Clock;
+    case "not_found":
+      return Icon.QuestionMark;
+    default:
+      return Icon.ExclamationMark;
+  }
+}

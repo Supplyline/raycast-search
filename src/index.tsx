@@ -3,7 +3,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useAlgoliaSearch } from "./hooks/useAlgoliaSearch";
 import { useNavigationStack } from "./hooks/useNavigationStack";
 import { buildBreadcrumb } from "./components/Breadcrumb";
-import { fetchBrands, BrandItem } from "./utils/algolia";
+import { fetchBrands, BrandItem, categorizeError } from "./utils/algolia";
 import { SearchResult, Preferences, SkuEntity, DocEntity, BrowseEntity, Scope, StackItem } from "./types";
 
 function getIconForEntity(result: SearchResult): { source: Icon; tintColor: Color } {
@@ -22,7 +22,7 @@ function getIconForEntity(result: SearchResult): { source: Icon; tintColor: Colo
 }
 
 export default function SearchSupplyline() {
-  const { showPrices, defaultScope } = getPreferenceValues<Preferences>();
+  const { defaultScope } = getPreferenceValues<Preferences>();
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<Scope>(defaultScope || "products");
   const { stack, pushMultiple, push, pop, hasType, canPop } = useNavigationStack();
@@ -31,21 +31,35 @@ export default function SearchSupplyline() {
   const [brands, setBrands] = useState<BrandItem[]>([]);
   const [brandsLoading, setBrandsLoading] = useState(true);
 
+  // Brands error state
+  const [brandsError, setBrandsError] = useState<{ message: string; type: ErrorType } | undefined>();
+
   // Fetch brands on mount
-  useEffect(() => {
+  const loadBrands = useCallback(() => {
+    setBrandsLoading(true);
+    setBrandsError(undefined);
     fetchBrands()
       .then(setBrands)
       .catch((err) => {
-        console.error("Failed to fetch brands:", err);
-        showToast({ style: Toast.Style.Failure, title: "Failed to load brands" });
+        const algoliaError = categorizeError(err);
+        setBrandsError({ message: algoliaError.message, type: algoliaError.type });
+        showToast({
+          style: Toast.Style.Failure,
+          title: getErrorTitle(algoliaError.type),
+          message: algoliaError.message,
+        });
       })
       .finally(() => setBrandsLoading(false));
   }, []);
 
+  useEffect(() => {
+    loadBrands();
+  }, [loadBrands]);
+
   // Show brands when: no query, no stack, products scope
   const showBrands = query.trim() === "" && stack.length === 0 && scope === "products";
 
-  const { results, isLoading, error } = useAlgoliaSearch(query, { stack, scope });
+  const { results, isLoading, error, retry } = useAlgoliaSearch(query, { stack, scope });
 
   // Handle brand selection
   const handleBrandSelect = useCallback(
@@ -53,7 +67,7 @@ export default function SearchSupplyline() {
       push({ type: "brand", id: brand.id, label: brand.name });
       setQuery("");
     },
-    [push]
+    [push],
   );
 
   const handleCopy = useCallback(async (item: SearchResult) => {
@@ -74,7 +88,7 @@ export default function SearchSupplyline() {
   const handleCopyMarkdown = useCallback(async (item: SearchResult) => {
     let markdown: string;
     const url = item.urlShop || item.urlAbout || "";
-    
+
     if (item.entityType === "doc") {
       const doc = item as DocEntity;
       markdown = `[${doc.title}](${doc.downloadUrl}) `;
@@ -128,7 +142,7 @@ export default function SearchSupplyline() {
         open(item.urlShop);
       }
     },
-    [pushMultiple, hasType]
+    [pushMultiple, hasType],
   );
 
   const handlePop = useCallback(() => {
@@ -147,7 +161,7 @@ export default function SearchSupplyline() {
         setQuery(text);
       }
     },
-    [query, canPop, handlePop]
+    [query, canPop, handlePop],
   );
 
   const getPlaceholder = () => {
@@ -175,59 +189,83 @@ export default function SearchSupplyline() {
       onSearchTextChange={handleSearchTextChange}
       throttle
       searchBarAccessory={
-        <List.Dropdown
-          tooltip="Search Scope"
-          value={scope}
-          onChange={(newValue) => setScope(newValue as Scope)}
-        >
+        <List.Dropdown tooltip="Search Scope" value={scope} onChange={(newValue) => setScope(newValue as Scope)}>
           <List.Dropdown.Item title="Products" value="products" />
           <List.Dropdown.Item title="Docs" value="docs" />
         </List.Dropdown>
       }
     >
+      {/* Initial brands list - Error state */}
+      {showBrands && brandsError && !brandsLoading && (
+        <List.EmptyView
+          title={getErrorTitle(brandsError.type)}
+          description={brandsError.message}
+          icon={getErrorIcon(brandsError.type)}
+          actions={
+            <ActionPanel>
+              <Action title="Try Again" icon={Icon.ArrowClockwise} onAction={loadBrands} />
+            </ActionPanel>
+          }
+        />
+      )}
+
       {/* Initial brands list */}
-      {showBrands && brands.length > 0 && (
+      {showBrands && !brandsError && brands.length > 0 && (
         <List.Section title="Brands" subtitle={`${brands.length} brands`}>
           {brands.map((brand) => {
             const brandIconName = brand.name.toLowerCase().replace(/\s+/g, "_");
             return (
-            <List.Item
-              key={brand.id}
-              icon={{ source: `brands/${brandIconName}.png`, fallback: { source: Icon.Building, tintColor: Color.Blue } }}
-              title={brand.name}
-              subtitle={`${brand.seriesCount} series`}
-              accessories={[{ icon: Icon.ChevronRight }]}
-              actions={
-                <ActionPanel>
-                  <Action
-                    title="Browse Series"
-                    icon={Icon.ChevronRight}
-                    onAction={() => handleBrandSelect(brand)}
-                  />
-                </ActionPanel>
-              }
-            />
-          );
+              <List.Item
+                key={brand.id}
+                icon={{
+                  source: `brands/${brandIconName}.png`,
+                  fallback: { source: Icon.Building, tintColor: Color.Blue },
+                }}
+                title={brand.name}
+                subtitle={`${brand.seriesCount} series`}
+                accessories={[{ icon: Icon.ChevronRight }]}
+                actions={
+                  <ActionPanel>
+                    <Action title="Browse Series" icon={Icon.ChevronRight} onAction={() => handleBrandSelect(brand)} />
+                  </ActionPanel>
+                }
+              />
+            );
           })}
         </List.Section>
       )}
 
-      {/* Search results */}
-      {!showBrands && results.length === 0 && query.length >= 2 && !isLoading && (
+      {/* Search results - Error state */}
+      {!showBrands && error && !isLoading && (
         <List.EmptyView
-          title="No Results"
-          description={error || `No matches for "${query}"`}
-          icon={Icon.MagnifyingGlass}
+          title={getErrorTitle(error.type)}
+          description={error.message}
+          icon={getErrorIcon(error.type)}
+          actions={
+            <ActionPanel>
+              <Action title="Try Again" icon={Icon.ArrowClockwise} onAction={retry} />
+            </ActionPanel>
+          }
         />
       )}
 
+      {/* Search results - Empty state */}
+      {!showBrands && !error && results.length === 0 && query.length >= 2 && !isLoading && (
+        <List.EmptyView title="No Results" description={`No matches for "${query}"`} icon={Icon.MagnifyingGlass} />
+      )}
+
       {!showBrands && results.length > 0 && (
-        <List.Section 
-          title={canPop ? buildBreadcrumb(stack) : "Results"} 
-          subtitle={`${results.length} items`}
-        >
+        <List.Section title={canPop ? buildBreadcrumb(stack) : "Results"} subtitle={`${results.length} items`}>
           {results.map((item) => (
-            <SearchResultItem key={item.objectID} item={item} showPrices={showPrices} onCopy={handleCopy} onCopyMarkdown={handleCopyMarkdown} onSelect={handleSelect} onPop={handlePop} canPop={canPop} />
+            <SearchResultItem
+              key={item.objectID}
+              item={item}
+              onCopy={handleCopy}
+              onCopyMarkdown={handleCopyMarkdown}
+              onSelect={handleSelect}
+              onPop={handlePop}
+              canPop={canPop}
+            />
           ))}
         </List.Section>
       )}
@@ -237,7 +275,6 @@ export default function SearchSupplyline() {
 
 interface SearchResultItemProps {
   item: SearchResult;
-  showPrices: boolean;
   onCopy: (item: SearchResult) => void;
   onCopyMarkdown: (item: SearchResult) => void;
   onSelect: (item: SearchResult) => void;
@@ -245,7 +282,7 @@ interface SearchResultItemProps {
   canPop?: boolean;
 }
 
-function SearchResultItem({ item, showPrices, onCopy, onCopyMarkdown, onSelect, onPop, canPop }: SearchResultItemProps) {
+function SearchResultItem({ item, onCopy, onCopyMarkdown, onSelect, onPop, canPop }: SearchResultItemProps) {
   const icon = getIconForEntity(item);
   const title = item.entityType === "sku" ? (item as SkuEntity).mno : item.title;
   const isDoc = item.entityType === "doc";
@@ -253,7 +290,7 @@ function SearchResultItem({ item, showPrices, onCopy, onCopyMarkdown, onSelect, 
   const isSku = item.entityType === "sku";
   const isParent = item.entityType === "parent";
   const isSeries = item.entityType === "series";
-  
+
   // Subtitle based on item type
   let subtitle: string | undefined;
   if (isParent || isSeries) {
@@ -332,15 +369,15 @@ function SearchResultItem({ item, showPrices, onCopy, onCopyMarkdown, onSelect, 
 function ItemDetail({ item }: { item: SearchResult }) {
   // Only render for SKU items
   if (item.entityType !== "sku") return null;
-  
+
   const sku = item as SkuEntity;
-  
+
   const seriesName = sku["drillKey.series"]?.toUpperCase() || "";
   const subtitle = seriesName ? `${sku.brand} • ${seriesName} Series` : sku.brand;
   const priceText = sku.price != null ? `$${sku.price.toFixed(2)}` : "N/A";
   const brandIconName = sku.brand.toLowerCase().replace(/\s+/g, "_");
   const brandIcon = { source: `brands/${brandIconName}.png`, fallback: Icon.Building };
-  
+
   return (
     <List.Item.Detail
       metadata={
@@ -349,10 +386,7 @@ function ItemDetail({ item }: { item: SearchResult }) {
           <List.Item.Detail.Metadata.Label title={subtitle} icon={brandIcon} />
           <List.Item.Detail.Metadata.Separator />
           <List.Item.Detail.Metadata.TagList title="Price">
-            <List.Item.Detail.Metadata.TagList.Item
-              text={priceText}
-              color={Color.Blue}
-            />
+            <List.Item.Detail.Metadata.TagList.Item text={priceText} color={Color.Blue} />
           </List.Item.Detail.Metadata.TagList>
           <List.Item.Detail.Metadata.TagList title="Stock">
             <List.Item.Detail.Metadata.TagList.Item
@@ -372,55 +406,6 @@ function ItemDetail({ item }: { item: SearchResult }) {
       }
     />
   );
-}
-
-function getSubtitle(item: SearchResult, showPrices: boolean): string {
-  const parts = [item.brand];
-  if (item.entityType === "sku" && showPrices && (item as SkuEntity).price != null) {
-    parts.push(`$${(item as SkuEntity).price!.toFixed(2)}`);
-  }
-  if (item.entityType === "doc") {
-    const doc = item as DocEntity;
-    if (doc.docType) {
-      parts.push(doc.docType.toUpperCase());
-    }
-  }
-  return parts.join(" • ");
-}
-
-function getAccessories(item: SearchResult): List.Item.Accessory[] {
-  const accessories: List.Item.Accessory[] = [];
-
-  // Drill indicator for browse items (series, parent)
-  if (item.entityType === "series" || item.entityType === "parent") {
-    accessories.push({ icon: Icon.ChevronRight });
-  }
-
-  // Stock status for SKUs
-  if (item.entityType === "sku") {
-    const sku = item as SkuEntity;
-    if (sku.inStock != null) {
-      accessories.push({
-        tag: {
-          value: sku.inStock ? "In Stock" : "Out of Stock",
-          color: sku.inStock ? Color.Green : Color.Red,
-        },
-      });
-    }
-  }
-
-  // Doc type tag
-  if (item.entityType === "doc") {
-    const doc = item as DocEntity;
-    accessories.push({
-      tag: {
-        value: doc.docType?.toUpperCase() || "DOC",
-        color: Color.Blue,
-      },
-    });
-  }
-
-  return accessories;
 }
 
 function DocQuickLook({ doc }: { doc: DocEntity }) {
@@ -457,4 +442,37 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Error handling helpers
+type ErrorType = "network" | "auth" | "rate_limit" | "not_found" | "unknown";
+
+function getErrorTitle(type: ErrorType): string {
+  switch (type) {
+    case "network":
+      return "Connection Error";
+    case "auth":
+      return "Authentication Error";
+    case "rate_limit":
+      return "Too Many Requests";
+    case "not_found":
+      return "Not Found";
+    default:
+      return "Search Error";
+  }
+}
+
+function getErrorIcon(type: ErrorType): Icon {
+  switch (type) {
+    case "network":
+      return Icon.Wifi;
+    case "auth":
+      return Icon.Lock;
+    case "rate_limit":
+      return Icon.Clock;
+    case "not_found":
+      return Icon.QuestionMark;
+    default:
+      return Icon.ExclamationMark;
+  }
 }
