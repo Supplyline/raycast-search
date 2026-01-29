@@ -2,7 +2,7 @@ import { Action, ActionPanel, List, Detail, Icon, Color, getPreferenceValues, sh
 import { useState, useCallback, useEffect } from "react";
 import { useAlgoliaSearch } from "./hooks/useAlgoliaSearch";
 import { useNavigationStack } from "./hooks/useNavigationStack";
-import { BreadcrumbSection } from "./components/Breadcrumb";
+import { buildBreadcrumb } from "./components/Breadcrumb";
 import { fetchBrands, BrandItem } from "./utils/algolia";
 import { SearchResult, Preferences, SkuEntity, DocEntity, Scope, StackItem } from "./types";
 
@@ -162,8 +162,6 @@ export default function SearchSupplyline() {
         </List.Dropdown>
       }
     >
-      <BreadcrumbSection stack={stack} onPop={handlePop} />
-
       {/* Initial brands list */}
       {showBrands && brands.length > 0 && (
         <List.Section title="Brands" subtitle={`${brands.length} brands`}>
@@ -198,7 +196,10 @@ export default function SearchSupplyline() {
       )}
 
       {!showBrands && results.length > 0 && (
-        <List.Section title="Results" subtitle={`${results.length} items`}>
+        <List.Section 
+          title={canPop ? buildBreadcrumb(stack) : "Results"} 
+          subtitle={`${results.length} items`}
+        >
           {results.map((item) => (
             <SearchResultItem key={item.objectID} item={item} showPrices={showPrices} onCopy={handleCopy} onSelect={handleSelect} onPop={handlePop} canPop={canPop} />
           ))}
