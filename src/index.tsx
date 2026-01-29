@@ -4,7 +4,7 @@ import { useAlgoliaSearch } from "./hooks/useAlgoliaSearch";
 import { useNavigationStack } from "./hooks/useNavigationStack";
 import { buildBreadcrumb } from "./components/Breadcrumb";
 import { fetchBrands, BrandItem } from "./utils/algolia";
-import { SearchResult, Preferences, SkuEntity, DocEntity, Scope, StackItem } from "./types";
+import { SearchResult, Preferences, SkuEntity, DocEntity, BrowseEntity, Scope, StackItem } from "./types";
 
 function getIconForEntity(result: SearchResult): { source: Icon; tintColor: Color } {
   switch (result.entityType) {
@@ -248,11 +248,21 @@ function SearchResultItem({ item, showPrices, onCopy, onCopyMarkdown, onSelect, 
   const isDoc = item.entityType === "doc";
   const doc = isDoc ? (item as DocEntity) : null;
   const isSku = item.entityType === "sku";
+  const isParent = item.entityType === "parent";
+  const isSeries = item.entityType === "series";
+  
+  // Subtitle for parent/series items: "Brand • X SKUs"
+  let subtitle: string | undefined;
+  if (isParent || isSeries) {
+    const browse = item as BrowseEntity;
+    subtitle = `${browse.brand} • ${browse.childCount} SKUs`;
+  }
 
   return (
     <List.Item
       icon={icon}
       title={title}
+      subtitle={subtitle}
       detail={isSku ? <ItemDetail item={item} /> : undefined}
       actions={
         <ActionPanel>
