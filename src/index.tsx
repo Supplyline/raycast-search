@@ -188,10 +188,12 @@ export default function SearchSupplyline() {
       {/* Initial brands list */}
       {showBrands && brands.length > 0 && (
         <List.Section title="Brands" subtitle={`${brands.length} brands`}>
-          {brands.map((brand) => (
+          {brands.map((brand) => {
+            const brandIconName = brand.name.toLowerCase().replace(/\s+/g, "_");
+            return (
             <List.Item
               key={brand.id}
-              icon={{ source: Icon.Building, tintColor: Color.Blue }}
+              icon={{ source: `brands/${brandIconName}.png`, fallback: { source: Icon.Building, tintColor: Color.Blue } }}
               title={brand.name}
               subtitle={`${brand.seriesCount} series`}
               accessories={[{ icon: Icon.ChevronRight }]}
@@ -205,7 +207,8 @@ export default function SearchSupplyline() {
                 </ActionPanel>
               }
             />
-          ))}
+          );
+          })}
         </List.Section>
       )}
 
@@ -335,13 +338,15 @@ function ItemDetail({ item }: { item: SearchResult }) {
   const seriesName = sku["drillKey.series"]?.toUpperCase() || "";
   const subtitle = seriesName ? `${sku.brand} • ${seriesName} Series` : sku.brand;
   const priceText = sku.price != null ? `$${sku.price.toFixed(2)}` : "N/A";
+  const brandIconName = sku.brand.toLowerCase().replace(/\s+/g, "_");
+  const brandIcon = { source: `brands/${brandIconName}.png`, fallback: Icon.Building };
   
   return (
     <List.Item.Detail
       metadata={
         <List.Item.Detail.Metadata>
           <List.Item.Detail.Metadata.Label title={sku.mno} />
-          <List.Item.Detail.Metadata.Label title={subtitle} />
+          <List.Item.Detail.Metadata.Label title={subtitle} icon={brandIcon} />
           <List.Item.Detail.Metadata.Separator />
           <List.Item.Detail.Metadata.TagList title="Price">
             <List.Item.Detail.Metadata.TagList.Item
