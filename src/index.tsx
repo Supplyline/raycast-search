@@ -306,6 +306,9 @@ function SearchResultItem({ item, onCopy, onCopyMarkdown, onSelect, onPop, canPo
   const isParent = item.entityType === "parent";
   const isSeries = item.entityType === "series";
 
+  // Display title for list: remove brand prefix (everything before "-") for SKU items
+  const listTitle = isSku && title.includes("-") ? title.split("-").slice(1).join("-") : title;
+
   // Subtitle based on item type
   let subtitle: string | undefined;
   if (isParent || isSeries) {
@@ -321,7 +324,7 @@ function SearchResultItem({ item, onCopy, onCopyMarkdown, onSelect, onPop, canPo
   return (
     <List.Item
       icon={icon}
-      title={title}
+      title={listTitle}
       subtitle={subtitle}
       detail={isSku ? <ItemDetail item={item} /> : undefined}
       actions={
