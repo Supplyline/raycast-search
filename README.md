@@ -2,7 +2,7 @@
 
 Native macOS search for Supplyline products, SKUs, and documentation via Raycast.
 
-> **Status:** In Development (Phase 1)
+> **Status:** In Development (Phase 5)
 > **Repo:** `Supplyline/raycast-search`
 
 ## Overview
@@ -31,14 +31,12 @@ Search Supplyline's product catalog without opening a browser. Features stack-ba
    npm install
    ```
 
-2. Configure Algolia credentials in Raycast preferences:
-   - Algolia App ID
-   - Algolia Search API Key (search-only, not admin)
-
-3. Run in development:
+2. Run in development mode (Raycast must be running):
    ```bash
    npm run dev
    ```
+
+The extension will be automatically imported into Raycast and ready to use. Open Raycast and type "Search Supplyline" to start.
 
 ## Documentation
 
