@@ -136,7 +136,7 @@ Can drill: LMI → PD Series → PD05 → SKUs. Backspace pops.
 - [x] Add error handling (network, auth, empty results)
 - [x] Add TTL caching with offline fallback
 - [x] Add loading states
-- [ ] Optimize search debouncing
+- [x] Optimize search debouncing
 - [x] Add stock status badges
 - [ ] Test all keyboard shortcuts
 - [ ] Write README with setup instructions

@@ -1,23 +1,65 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { showToast, Toast } from "@raycast/api";
 import { SearchResult, StackItem, Scope } from "../types";
-import { searchProducts, searchDocs, categorizeError, AlgoliaErrorType } from "../utils/algolia";
+import { searchProducts, searchDocs, categorizeError, AlgoliaErrorType, isMnoQuery } from "../utils/algolia";
 import { getFromCache, setInCache, getFromCacheStale, getSearchCacheKey, TTL } from "../utils/cache";
 
-// Custom debounce hook
-function useDebouncedValue<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+// Adaptive debounce delays (in ms)
+const DEBOUNCE = {
+  MNO: 50, // Part numbers - near-instant search
+  SHORT: 300, // Short queries (< 4 chars) - wait longer
+  LONG: 100, // Long specific queries (> 6 chars) - faster
+  DEFAULT: 200, // Standard debounce
+} as const;
+
+// Determine optimal debounce time based on query characteristics
+function getAdaptiveDebounceMs(query: string): number {
+  const trimmed = query.trim();
+
+  // Empty or very short - use default
+  if (trimmed.length < 2) return DEBOUNCE.DEFAULT;
+
+  // MNO pattern detected - near-instant search
+  if (isMnoQuery(trimmed)) return DEBOUNCE.MNO;
+
+  // Short queries - wait longer for user to finish typing
+  if (trimmed.length < 4) return DEBOUNCE.SHORT;
+
+  // Long specific queries - can search faster
+  if (trimmed.length > 6) return DEBOUNCE.LONG;
+
+  return DEBOUNCE.DEFAULT;
+}
+
+// Custom debounce hook with adaptive delay
+function useAdaptiveDebouncedValue(value: string): string {
+  const [debouncedValue, setDebouncedValue] = useState<string>(value);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedValue(value), delay);
-    return () => clearTimeout(timer);
-  }, [value, delay]);
+    // Clear previous timer
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
+
+    // Calculate adaptive delay based on current query
+    const delay = getAdaptiveDebounceMs(value);
+
+    timerRef.current = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, [value]);
 
   return debouncedValue;
 }
 
 interface UseAlgoliaSearchOptions {
-  debounceMs?: number;
   scope?: Scope;
   stack?: StackItem[];
 }
@@ -28,7 +70,7 @@ interface SearchError {
 }
 
 export function useAlgoliaSearch(query: string, options: UseAlgoliaSearchOptions = {}) {
-  const { debounceMs = 200, scope = "products", stack = [] } = options;
+  const { scope = "products", stack = [] } = options;
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<SearchError | undefined>();
@@ -36,7 +78,8 @@ export function useAlgoliaSearch(query: string, options: UseAlgoliaSearchOptions
   const [isStale, setIsStale] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-  const debouncedQuery = useDebouncedValue(query, debounceMs);
+  // Use adaptive debouncing: MNO queries get near-instant search, short queries wait longer
+  const debouncedQuery = useAdaptiveDebouncedValue(query);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Serialize stack for dependency comparison
