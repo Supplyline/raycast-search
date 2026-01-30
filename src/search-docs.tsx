@@ -1,6 +1,7 @@
 import { Action, ActionPanel, List, Icon, Color, Clipboard, showToast, Toast } from "@raycast/api";
 import { useState, useCallback } from "react";
 import { useAlgoliaSearch } from "./hooks/useAlgoliaSearch";
+import { downloadToCache, openInPreview } from "./utils/preview-cache";
 import { DocEntity } from "./types";
 
 export default function SearchDocs() {
@@ -21,6 +22,29 @@ export default function SearchDocs() {
     const text = `[${item.title}](${item.downloadUrl}) `;
     await Clipboard.copy(text);
     await showToast({ style: Toast.Style.Success, title: "Copied as Markdown" });
+  }, []);
+
+  const handlePreview = useCallback(async (doc: DocEntity) => {
+    if (!doc.downloadUrl) {
+      await showToast({ style: Toast.Style.Failure, title: "No document URL" });
+      return;
+    }
+
+    await showToast({ style: Toast.Style.Animated, title: "Downloading..." });
+
+    try {
+      // Generate filename from URL or title
+      const urlParts = doc.downloadUrl.split("/");
+      const filename = urlParts[urlParts.length - 1] || `${doc.objectID}.pdf`;
+
+      const localPath = await downloadToCache(doc.downloadUrl, filename);
+      openInPreview(localPath);
+
+      await showToast({ style: Toast.Style.Success, title: "Opening in Preview" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Download failed";
+      await showToast({ style: Toast.Style.Failure, title: "Preview failed", message });
+    }
   }, []);
 
   const showDetailPanel = results.length > 0;
@@ -74,6 +98,14 @@ export default function SearchDocs() {
                   <ActionPanel.Section>
                     {doc.downloadUrl && (
                       <Action.OpenInBrowser title="Open Document" url={doc.downloadUrl} icon={Icon.Globe} />
+                    )}
+                    {doc.downloadUrl && (
+                      <Action
+                        title="Preview"
+                        icon={Icon.Eye}
+                        shortcut={{ modifiers: ["cmd"], key: "p" }}
+                        onAction={() => handlePreview(doc)}
+                      />
                     )}
                   </ActionPanel.Section>
                   <ActionPanel.Section>

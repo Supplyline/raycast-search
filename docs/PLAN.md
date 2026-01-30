@@ -138,7 +138,7 @@ Can drill: LMI → PD Series → PD05 → SKUs. Backspace pops.
 - [x] Add loading states
 - [x] Optimize search debouncing
 - [x] Add stock status badges
-- [ ] Test all keyboard shortcuts
+- [x] Test all keyboard shortcuts
 - [ ] Write README with setup instructions
 
 ### Deliverable
