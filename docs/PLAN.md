@@ -135,9 +135,9 @@ Can drill: LMI → PD Series → PD05 → SKUs. Backspace pops.
 - [x] Add "Copy as Markdown" action (⌘+⇧+K)
 - [x] Add error handling (network, auth, empty results)
 - [x] Add TTL caching with offline fallback
-- [ ] Add loading states
+- [x] Add loading states
 - [ ] Optimize search debouncing
-- [ ] Add stock status badges
+- [x] Add stock status badges
 - [ ] Test all keyboard shortcuts
 - [ ] Write README with setup instructions
 

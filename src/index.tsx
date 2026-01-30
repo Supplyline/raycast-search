@@ -71,7 +71,7 @@ export default function SearchSupplyline() {
   // Show brands when: no query, no stack, products scope
   const showBrands = query.trim() === "" && stack.length === 0 && scope === "products";
 
-  const { results, isLoading, error, retry } = useAlgoliaSearch(query, { stack, scope });
+  const { results, isLoading, error, retry, hasSearched } = useAlgoliaSearch(query, { stack, scope });
 
   // Handle brand selection
   const handleBrandSelect = useCallback(
@@ -264,8 +264,15 @@ export default function SearchSupplyline() {
         />
       )}
 
-      {/* Search results - Empty state */}
-      {!showBrands && !error && results.length === 0 && query.length >= 2 && !isLoading && (
+      {/* Search results - Loading state with placeholder */}
+      {!showBrands && !error && results.length === 0 && query.length >= 2 && (isLoading || !hasSearched) && (
+        <List.Section title="Searching...">
+          <List.Item icon={Icon.CircleProgress} title="Loading..." subtitle="Please wait" />
+        </List.Section>
+      )}
+
+      {/* Search results - Empty state (only after search completed) */}
+      {!showBrands && !error && results.length === 0 && query.length >= 2 && !isLoading && hasSearched && (
         <List.EmptyView title="No Results" description={`No matches for "${query}"`} icon={Icon.MagnifyingGlass} />
       )}
 

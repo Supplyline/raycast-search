@@ -6,7 +6,7 @@ import { DocEntity } from "./types";
 export default function SearchDocs() {
   const [query, setQuery] = useState("");
 
-  const { results, isLoading, error, retry } = useAlgoliaSearch(query, {
+  const { results, isLoading, error, retry, hasSearched } = useAlgoliaSearch(query, {
     scope: "docs",
     stack: [],
   });
@@ -48,8 +48,15 @@ export default function SearchDocs() {
         />
       )}
 
-      {/* Empty state */}
-      {!error && results.length === 0 && query.length >= 2 && !isLoading && (
+      {/* Loading state with placeholder */}
+      {!error && results.length === 0 && query.length >= 2 && (isLoading || !hasSearched) && (
+        <List.Section title="Searching...">
+          <List.Item icon={Icon.CircleProgress} title="Loading..." subtitle="Please wait" />
+        </List.Section>
+      )}
+
+      {/* Empty state (only after search completed) */}
+      {!error && results.length === 0 && query.length >= 2 && !isLoading && hasSearched && (
         <List.EmptyView title="No Documents Found" description={`No matches for "${query}"`} icon={Icon.Document} />
       )}
 
