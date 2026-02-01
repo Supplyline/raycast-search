@@ -14,7 +14,7 @@ function getIconForEntity(result: SearchResult): { source: Icon | string; tintCo
     case "parent":
       return { source: "model-icon.png" };
     case "sku":
-      return { source: Icon.Tag, tintColor: Color.Green };
+      return { source: "sku-icon.png" };
     case "doc":
       return { source: Icon.Document, tintColor: Color.Orange };
     default:
