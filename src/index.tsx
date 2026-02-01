@@ -7,10 +7,10 @@ import { fetchBrandsWithFallback, BrandItem, categorizeError } from "./utils/alg
 import { downloadToCache, openInPreview } from "./utils/preview-cache";
 import { SearchResult, Preferences, SkuEntity, DocEntity, BrowseEntity, Scope, StackItem } from "./types";
 
-function getIconForEntity(result: SearchResult): { source: Icon; tintColor: Color } {
+function getIconForEntity(result: SearchResult): { source: Icon | string; tintColor?: Color } {
   switch (result.entityType) {
     case "series":
-      return { source: Icon.Folder, tintColor: Color.Blue };
+      return { source: "series-icon.png" };
     case "parent":
       return { source: Icon.Box, tintColor: Color.Purple };
     case "sku":
