@@ -12,7 +12,7 @@ function getIconForEntity(result: SearchResult): { source: Icon | string; tintCo
     case "series":
       return { source: "series-icon.png" };
     case "parent":
-      return { source: Icon.Box, tintColor: Color.Purple };
+      return { source: "model-icon.png" };
     case "sku":
       return { source: Icon.Tag, tintColor: Color.Green };
     case "doc":
